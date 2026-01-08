@@ -1,0 +1,28 @@
+{
+  description = "canopy - universal data UI client";
+
+  inputs = {
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    flake-utils.url = "github:numtide/flake-utils";
+  };
+
+  outputs = { self, nixpkgs, flake-utils }:
+    flake-utils.lib.eachDefaultSystem (system:
+      let
+        pkgs = nixpkgs.legacyPackages.${system};
+      in
+      {
+        devShells.default = pkgs.mkShell rec {
+          buildInputs = with pkgs; [
+            # TypeScript toolchain
+            bun
+            nodePackages.typescript
+            nodePackages.typescript-language-server
+            # Runtime libs
+            stdenv.cc.cc
+          ];
+          LD_LIBRARY_PATH = "${pkgs.lib.makeLibraryPath buildInputs}:$LD_LIBRARY_PATH";
+        };
+      }
+    );
+}
