@@ -32,7 +32,7 @@ export default withMermaid(
       },
     },
     title: 'Canopy',
-    description: 'Universal data UI client',
+    description: 'Universal UI client with control plane',
 
     base: '/canopy/',
 

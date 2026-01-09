@@ -4,7 +4,21 @@ Behavioral rules for Claude Code in this repository.
 
 ## Project
 
-**Canopy:** A UI client for arbitrary data - static, filesystem, network fetched/streamed, video, audio, binary, JSON, SSE, JSONL, protobuf, msgpack, etc. Infinitely user-configurable.
+**Canopy:** A universal UI client for arbitrary data sources. Not just read-only - includes a control plane for mutating, triggering, and interacting with the systems producing the data.
+
+### Data Sources
+
+Static, filesystem, network fetched/streamed, video, audio, binary, JSON, SSE, JSONL, protobuf, msgpack, etc.
+
+### Control Plane
+
+Canopy is data-format agnostic, and so is its control plane. You can:
+- View data from any source
+- Trigger actions on the system producing the data
+- Mutate state through the same protocol
+- Monitor multiple systems in unified views
+
+This makes Canopy the "Project Hub" for Rhizome - viewing Lotus world state, triggering Winnow extractions, monitoring Cambium pipelines, all through format-agnostic adapters.
 
 ## Core Rule
 
