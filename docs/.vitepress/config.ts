@@ -40,6 +40,7 @@ export default withMermaid(
       nav: [
         { text: 'Philosophy', link: '/philosophy' },
         { text: 'Architecture', link: '/architecture' },
+        { text: 'Rhizome', link: 'https://rhizome-lab.github.io/' },
       ],
 
       sidebar: {
@@ -60,7 +61,7 @@ export default withMermaid(
       },
 
       socialLinks: [
-        { icon: 'github', link: 'https://github.com/pterror/canopy' }
+        { icon: 'github', link: 'https://github.com/rhizome-lab/canopy' }
       ],
 
       search: {
@@ -68,7 +69,7 @@ export default withMermaid(
       },
 
       editLink: {
-        pattern: 'https://github.com/pterror/canopy/edit/master/docs/:path',
+        pattern: 'https://github.com/rhizome-lab/canopy/edit/master/docs/:path',
         text: 'Edit this page on GitHub'
       },
     },
