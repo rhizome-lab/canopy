@@ -31,16 +31,16 @@ export default withMermaid(
         include: ['mermaid'],
       },
     },
-    title: 'Canopy',
+    title: 'Dusklight',
     description: 'Universal UI client with control plane',
 
-    base: '/canopy/',
+    base: '/dusklight/',
 
     themeConfig: {
       nav: [
         { text: 'Philosophy', link: '/philosophy' },
         { text: 'Architecture', link: '/architecture' },
-        { text: 'Rhizome', link: 'https://rhizome-lab.github.io/' },
+        { text: 'RHI', link: 'https://rhi-zone.github.io/' },
       ],
 
       sidebar: {
@@ -61,7 +61,7 @@ export default withMermaid(
       },
 
       socialLinks: [
-        { icon: 'github', link: 'https://github.com/rhizome-lab/canopy' }
+        { icon: 'github', link: 'https://github.com/rhi-zone/dusklight' }
       ],
 
       search: {
@@ -69,7 +69,7 @@ export default withMermaid(
       },
 
       editLink: {
-        pattern: 'https://github.com/rhizome-lab/canopy/edit/master/docs/:path',
+        pattern: 'https://github.com/rhi-zone/dusklight/edit/master/docs/:path',
         text: 'Edit this page on GitHub'
       },
     },

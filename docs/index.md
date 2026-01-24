@@ -2,7 +2,7 @@
 layout: home
 
 hero:
-  name: Canopy
+  name: Dusklight
   text: Universal Data UI
   tagline: Pattern-driven rendering for arbitrary data
   actions:
@@ -15,7 +15,7 @@ hero:
 
 features:
   - title: Pattern-First Rendering
-    details: Data flows through recognition → rendering. Teach Canopy patterns, it applies them everywhere.
+    details: Data flows through recognition → rendering. Teach Dusklight patterns, it applies them everywhere.
   - title: Everything is a Plugin
     details: Parsers, pattern matchers, renderers - all pluggable. Core orchestrates, plugins do the work.
   - title: Progressive Disclosure

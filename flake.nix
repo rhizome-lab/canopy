@@ -1,5 +1,5 @@
 {
-  description = "canopy - universal data UI client";
+  description = "dusklight - universal data UI client";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";

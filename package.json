@@ -1,0 +1,10 @@
+{
+  "name": "dusklight",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "echo 'No TypeScript source yet - skipping typecheck'",
+    "lint": "echo 'No TypeScript source yet - skipping lint'"
+  }
+}

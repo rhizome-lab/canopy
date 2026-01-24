@@ -1,12 +1,12 @@
 # Philosophy
 
-Canopy is a **consumer** of data. It doesn't produce, mutate, or manage - it observes and renders.
+Dusklight is a **consumer** of data. It doesn't produce, mutate, or manage - it observes and renders.
 
 ## Core Insight
 
 Data has shape. Shape implies visualization. The gap between "raw JSON response" and "useful UI" is pattern recognition + rendering.
 
-Most tools hardcode this: Swagger UI knows OpenAPI, Grafana knows metrics, pgAdmin knows tables. Canopy inverts it: **you teach it patterns, it applies them everywhere**.
+Most tools hardcode this: Swagger UI knows OpenAPI, Grafana knows metrics, pgAdmin knows tables. Dusklight inverts it: **you teach it patterns, it applies them everywhere**.
 
 ## Design Principles
 
@@ -50,7 +50,7 @@ Everything else is pluggable:
 - Binary format parsers (protobuf, msgpack, custom)
 - Protocol handlers (SSE, WebSocket, gRPC-web)
 
-Local plugins (`~/.config/canopy/plugins/local/`) serve as escape hatches - same API as published plugins, but for personal one-offs and quick fixes.
+Local plugins (`~/.config/dusklight/plugins/local/`) serve as escape hatches - same API as published plugins, but for personal one-offs and quick fixes.
 
 ### 4. Configuration as Code
 
@@ -59,13 +59,13 @@ Settings follow VSCode model:
 - JSON/JSONC with schema validation
 - Per-source overrides ("for this URL, use this renderer")
 
-## What Canopy Is Not
+## What Dusklight Is Not
 
-- **Not an API client**: No request builder, no auth management, no collections. Use Insomnia/Postman for that, pipe output to Canopy.
+- **Not an API client**: No request builder, no auth management, no collections. Use Insomnia/Postman for that, pipe output to Dusklight.
 - **Not a database UI**: No query builder, no schema browser. It renders data, not sources.
 - **Not a dashboard builder**: No layout persistence, no scheduled refresh. It's a viewer, not a monitoring tool.
 
-These boundaries keep scope manageable. Canopy does one thing: render arbitrary data well.
+These boundaries keep scope manageable. Dusklight does one thing: render arbitrary data well.
 
 ## Platform
 

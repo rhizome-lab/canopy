@@ -1,6 +1,6 @@
 # Architecture
 
-High-level technical design for Canopy.
+High-level technical design for Dusklight.
 
 ## Data Flow
 
@@ -149,8 +149,8 @@ Example user settings:
 
 ## Open Questions
 
-- [x] ~~How do user scripts integrate?~~ No distinction - everything is a plugin. Local plugins live in `~/.config/canopy/plugins/local/`, installed ones in `plugins/installed/`. Same API, same power.
+- [x] ~~How do user scripts integrate?~~ No distinction - everything is a plugin. Local plugins live in `~/.config/dusklight/plugins/local/`, installed ones in `plugins/installed/`. Same API, same power.
 - [x] ~~Streaming data - how do patterns work on partial data?~~ Patterns match individual items. Renderers control collection behavior (append/window/replace). Same pattern can render as "table, append last 1000" or "chart, window last 5 minutes". Multiple views on same source can have different collection modes.
-- [x] ~~Binary annotation UI - how to persist user structure annotations?~~ Layered like VSCode settings: user (`~/.config/canopy/`), workspace (`.canopy/`), folder, file. User can "promote to plugin" when they've identified a general format.
+- [x] ~~Binary annotation UI - how to persist user structure annotations?~~ Layered like VSCode settings: user (`~/.config/dusklight/`), workspace (`.dusklight/`), folder, file. User can "promote to plugin" when they've identified a general format.
 - [x] ~~Schema discovery - auto-fetch OpenAPI, or explicit config?~~ Both: auto-discover well-known paths, allow explicit override/disable. Schema flows into `MatchContext` so patterns can use it (authoritative) or fall back to data heuristics. Also used for: validation indicators, documentation tooltips (like VSCode JSON language server).
-- [x] ~~Plugin distribution - registry, or just URLs?~~ No custom registry. Use npm/jsr for published plugins, URLs for direct install, local paths for personal plugins. All resolve to ES modules. `canopy install npm:@canopy/foo`, `canopy install https://...`, `canopy install ./local/bar.ts`.
+- [x] ~~Plugin distribution - registry, or just URLs?~~ No custom registry. Use npm/jsr for published plugins, URLs for direct install, local paths for personal plugins. All resolve to ES modules. `dusklight install npm:@dusklight/foo`, `dusklight install https://...`, `dusklight install ./local/bar.ts`.
