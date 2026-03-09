@@ -415,6 +415,12 @@ Type definitions (DUs, aliases) live in a separate schema/manifest, not inline i
 
 ```json
 {
+  "imports": [
+    { "from": "lib:std",      "import": ["option", "result"] },
+    { "from": "lib:matrix",   "import": ["MatrixEvent"] },
+    { "from": "local:./my-types.json", "import": ["MyType"] },
+    { "from": "https://example.com/types.json", "import": ["OtherType"] }
+  ],
   "types": [
     { "name": "Shape", "variants": [
       { "tag": "Circle", "fields": [["radius", "float"]] },
@@ -425,10 +431,49 @@ Type definitions (DUs, aliases) live in a separate schema/manifest, not inline i
 }
 ```
 
-Standard library types (`option<T>`, `result<T, E>`) are defined this way — no special cases in the language core.
+### Import Schemes
+
+All imports resolve to modules the same way. No special cases.
+
+| Scheme    | Resolves to                                      |
+|-----------|--------------------------------------------------|
+| `lib:`    | Named installed library (builtins, plugins, npm) |
+| `local:`  | Filesystem path                                  |
+| `https:`  | URL                                              |
+
+Built-in libraries:
+- `lib:std` — core data manipulation, standard DUs (`option`, `result`), standard effects
+- `lib:transport` — HTTP, WebSocket, SSE, TCP
+- `lib:protocol` — JSON-RPC, and other protocol primitives
+
+Standard library types (`option<T>`, `result<T, E>`) are defined in `lib:std` — no special cases in the language core.
+
+## Effects — Handler Syntax
+
+```json
+["handle", expr,
+  [["Yield", "val", "k"], ["do", ["collect", "val"], ["call", "k", null]]],
+  [["Error", "err", "k"], ["log", "err"]],
+  [["return", "x"], "x"]]
+```
+
+Each clause binds the effect payload and the continuation `k` as explicit named parameters — first-class values, no magic. `k` can be called, passed around, stored.
+
+Continuations are **multi-shot** — they can be called zero or more times. One-shot effects (`Error`, `Async`) simply never call `k` or call it exactly once. `Yield` calls `k` once per yielded value. The type system tracks continuation linearity where declared.
+
+## Effect Type Signatures
+
+Effect types are **inferred** by default — the type checker tracks which effects an expression may perform without explicit annotation. Explicit annotation is optional:
+
+```json
+["fn", [["x", "int"]], ["+", "x", 1], { "effects": [] }]
+["fn", [["x", "int"]], ["fetch", "x"], { "effects": ["Async", "Error"] }]
+```
+
+Unannotated functions have their effect set inferred. Annotated functions are checked against the declared set.
 
 ## Open Questions
 
-- Effect handler syntax — `["handle", ...]` form is a placeholder; exact form TBD.
-- Module imports — how does one module reference types/ops from another?
-- Effect type signatures — how are effects declared in the type system?
+- Effect handler clause syntax — current form is a working proposal; may evolve.
+- Module exports — how does a module expose types/ops to importers?
+- Continuation linearity tracking — how strictly should the type system enforce one-shot vs multi-shot?
