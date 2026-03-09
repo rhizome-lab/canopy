@@ -104,14 +104,26 @@ Actions are suggested by patterns (which recognize what operations make sense fo
 
 ### Renderer
 
-Projects data to UI. A renderer is a projection — it receives data and produces UI. State management is the renderer's own concern; core does not classify renderers as stateful or stateless.
+Projects data to UI. A renderer is a projection — it receives a `ReactiveLens<S, A>` and produces UI.
 
-Complex UIs (e.g. a chat interface) are **composed from layout primitives**, not implemented as monolithic renderer plugins. The layout system arranges primitive renderers (message list, input box, send button) into complex UIs. No special-case renderers for known UI patterns.
+A `ReactiveLens<S, A>` is a lens where `get` returns a `Signal<A>` and `set` propagates reactively. A read-only source produces a lens where the write side is a no-op. An input/form produces a lens where writes propagate. Same API in all cases — the renderer doesn't need to know which.
+
+The reactive lens a renderer receives is the result of composing all optics from the layout tree root down to that leaf.
+
+Renderers receive scoped capabilities for action invocation. Actions (e.g. a POST request) are separate from the lens write surface — they are Marinada expressions invoked via capability.
+
+Renderer-local state is up to the renderer. It may expose state into the reactive graph (scroll position, selection — observable, persistable, debuggable) or keep it opaque. Either way it's just data.
+
+Complex UIs are **composed from layout primitives**, not implemented as monolithic renderer plugins. Philosophy: define only primitives, compose everything else.
 
 ```typescript
-type Renderer = {
+type Renderer<S, A> = {
   id: string
-  mount(target: Element, data: unknown): () => void  // returns unmount
+  mount(target: Element, lens: ReactiveLens<S, A>, ctx: RendererCtx): () => void
+}
+
+type RendererCtx = {
+  caps: Record<string, Cap<unknown>>
 }
 ```
 
@@ -248,4 +260,4 @@ Config files are JSONC. Stored at:
 - [x] ~~Layout system~~ Optics for data scoping (lenses/traversals compose down the tree). Properties are Marinada expressions with compiler-emitted reactivity (signals). ForEach is a traversal.
 - [x] ~~Capability grant flow~~ Two levels: (1) **max set** defined in config file via setup wizard — the ceiling of what Dusklight itself may do; (2) **attenuation** via UI at runtime — user decides what each app/view/plugin actually receives, always a subset of the max. Root capabilities only ever narrow as they flow down.
 - [x] ~~Local agent protocol~~ Cap'n Proto over Unix socket. Zero-copy; capability model maps directly onto the wire format.
-- [ ] Renderer mount API — needs more thought; current signature is placeholder.
+- [x] ~~Renderer mount API~~ All renderers receive a `ReactiveLens<S, A>` (read-only = no-op write side). Actions via scoped capabilities. Local state up to renderer — may be exposed into reactive graph or kept opaque.
