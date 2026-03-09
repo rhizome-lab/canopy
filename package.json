@@ -11,5 +11,8 @@
     "lint": "bun run --filter '*' lint",
     "test": "bun run --filter '*' test",
     "build": "bun run --filter '*' build"
+  },
+  "devDependencies": {
+    "happy-dom": "^20.8.3"
   }
 }

@@ -1254,48 +1254,6 @@ function* evalGen(expr: Expr, env: Env): EvalGen {
       return ok(NULL);
     }
 
-    case "str-len": {
-      if (arr.length !== 2) return err("ARITY_ERROR", [], "str-len requires 1 arg");
-      const sR = prependPath(yield* evalGen(at(arr, 1), env), 1);
-      if (!sR.ok) return sR;
-      if (sR.value.kind !== "string") {
-        return err("TYPE_ERROR", [1], "str-len requires string, got " + typeName(sR.value));
-      }
-      return ok({ kind: "int", value: BigInt(sR.value.value.length) });
-    }
-
-    case "min": {
-      if (arr.length !== 3) return err("ARITY_ERROR", [], "min requires 2 args");
-      const ar = prependPath(yield* evalGen(at(arr, 1), env), 1);
-      if (!ar.ok) return ar;
-      const br = prependPath(yield* evalGen(at(arr, 2), env), 2);
-      if (!br.ok) return br;
-      if (!isNumeric(ar.value))
-        return err("TYPE_ERROR", [1], "min requires number, got " + typeName(ar.value));
-      if (!isNumeric(br.value))
-        return err("TYPE_ERROR", [2], "min requires number, got " + typeName(br.value));
-      if (isInt(ar.value) && isInt(br.value)) {
-        return ok(ar.value.value <= br.value.value ? ar.value : br.value);
-      }
-      return ok(toFloat(ar.value) <= toFloat(br.value) ? ar.value : br.value);
-    }
-
-    case "max": {
-      if (arr.length !== 3) return err("ARITY_ERROR", [], "max requires 2 args");
-      const ar = prependPath(yield* evalGen(at(arr, 1), env), 1);
-      if (!ar.ok) return ar;
-      const br = prependPath(yield* evalGen(at(arr, 2), env), 2);
-      if (!br.ok) return br;
-      if (!isNumeric(ar.value))
-        return err("TYPE_ERROR", [1], "max requires number, got " + typeName(ar.value));
-      if (!isNumeric(br.value))
-        return err("TYPE_ERROR", [2], "max requires number, got " + typeName(br.value));
-      if (isInt(ar.value) && isInt(br.value)) {
-        return ok(ar.value.value >= br.value.value ? ar.value : br.value);
-      }
-      return ok(toFloat(ar.value) >= toFloat(br.value) ? ar.value : br.value);
-    }
-
     // --- Functions ---
     case "fn": {
       // ["fn", params, body]  params is array of strings (or [name, type] pairs — we take name only)
