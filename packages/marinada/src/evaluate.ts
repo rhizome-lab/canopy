@@ -720,6 +720,470 @@ function* evalGen(expr: Expr, env: Env): EvalGen {
       return ok({ kind: "array", value: [...recR.value.value.values()] });
     }
 
+    // --- Array primitives ---
+    case "array": {
+      const items: Value[] = [];
+      for (let i = 1; i < arr.length; i++) {
+        const r = prependPath(yield* evalGen(at(arr, i), env), i);
+        if (!r.ok) return r;
+        items.push(r.value);
+      }
+      return ok({ kind: "array", value: items });
+    }
+
+    case "array-get": {
+      if (arr.length !== 3)
+        return err("ARITY_ERROR", [], "array-get requires 2 args, got " + String(arr.length - 1));
+      const agArrR = prependPath(yield* evalGen(at(arr, 1), env), 1);
+      if (!agArrR.ok) return agArrR;
+      if (agArrR.value.kind !== "array")
+        return err("TYPE_ERROR", [1], "array-get requires array, got " + typeName(agArrR.value));
+      const agIdxR = prependPath(yield* evalGen(at(arr, 2), env), 2);
+      if (!agIdxR.ok) return agIdxR;
+      if (!isInt(agIdxR.value))
+        return err("TYPE_ERROR", [2], "array-get index must be int, got " + typeName(agIdxR.value));
+      const agIdx = Number(agIdxR.value.value);
+      if (agIdx < 0 || agIdx >= agArrR.value.value.length) return ok(NULL);
+      return ok(agArrR.value.value[agIdx] as Value);
+    }
+
+    case "array-push": {
+      if (arr.length !== 3)
+        return err("ARITY_ERROR", [], "array-push requires 2 args, got " + String(arr.length - 1));
+      const apArrR = prependPath(yield* evalGen(at(arr, 1), env), 1);
+      if (!apArrR.ok) return apArrR;
+      if (apArrR.value.kind !== "array")
+        return err("TYPE_ERROR", [1], "array-push requires array, got " + typeName(apArrR.value));
+      const apElemR = prependPath(yield* evalGen(at(arr, 2), env), 2);
+      if (!apElemR.ok) return apElemR;
+      return ok({ kind: "array", value: [...apArrR.value.value, apElemR.value] });
+    }
+
+    case "array-slice": {
+      if (arr.length !== 4 && arr.length !== 3)
+        return err(
+          "ARITY_ERROR",
+          [],
+          "array-slice requires 2 or 3 args, got " + String(arr.length - 1),
+        );
+      const asArrR = prependPath(yield* evalGen(at(arr, 1), env), 1);
+      if (!asArrR.ok) return asArrR;
+      if (asArrR.value.kind !== "array")
+        return err("TYPE_ERROR", [1], "array-slice requires array, got " + typeName(asArrR.value));
+      const asStartR = prependPath(yield* evalGen(at(arr, 2), env), 2);
+      if (!asStartR.ok) return asStartR;
+      if (!isInt(asStartR.value))
+        return err(
+          "TYPE_ERROR",
+          [2],
+          "array-slice start must be int, got " + typeName(asStartR.value),
+        );
+      const asStart = Number(asStartR.value.value);
+      if (arr.length === 3) {
+        return ok({ kind: "array", value: asArrR.value.value.slice(asStart) });
+      }
+      const asEndR = prependPath(yield* evalGen(at(arr, 3), env), 3);
+      if (!asEndR.ok) return asEndR;
+      if (!isInt(asEndR.value))
+        return err("TYPE_ERROR", [3], "array-slice end must be int, got " + typeName(asEndR.value));
+      const asEnd = Number(asEndR.value.value);
+      return ok({ kind: "array", value: asArrR.value.value.slice(asStart, asEnd) });
+    }
+
+    // --- Record aliases ---
+    case "record-get": {
+      if (arr.length !== 3)
+        return err("ARITY_ERROR", [], "record-get requires 2 args, got " + String(arr.length - 1));
+      const rgObjR = prependPath(yield* evalGen(at(arr, 1), env), 1);
+      if (!rgObjR.ok) return rgObjR;
+      const rgKeyR = prependPath(yield* evalGen(at(arr, 2), env), 2);
+      if (!rgKeyR.ok) return rgKeyR;
+      return getField(rgObjR.value, rgKeyR.value, [2]);
+    }
+
+    case "record-set": {
+      if (arr.length !== 4)
+        return err("ARITY_ERROR", [], "record-set requires 3 args, got " + String(arr.length - 1));
+      const rsObjR = prependPath(yield* evalGen(at(arr, 1), env), 1);
+      if (!rsObjR.ok) return rsObjR;
+      const rsKeyR = prependPath(yield* evalGen(at(arr, 2), env), 2);
+      if (!rsKeyR.ok) return rsKeyR;
+      const rsValR = prependPath(yield* evalGen(at(arr, 3), env), 3);
+      if (!rsValR.ok) return rsValR;
+      return setField(rsObjR.value, rsKeyR.value, rsValR.value, [2]);
+    }
+
+    case "record-del": {
+      if (arr.length !== 3)
+        return err("ARITY_ERROR", [], "record-del requires 2 args, got " + String(arr.length - 1));
+      const rdRecR = prependPath(yield* evalGen(at(arr, 1), env), 1);
+      if (!rdRecR.ok) return rdRecR;
+      if (rdRecR.value.kind !== "record")
+        return err("TYPE_ERROR", [1], "record-del requires record, got " + typeName(rdRecR.value));
+      const rdKeyR = prependPath(yield* evalGen(at(arr, 2), env), 2);
+      if (!rdKeyR.ok) return rdKeyR;
+      if (rdKeyR.value.kind !== "string")
+        return err(
+          "TYPE_ERROR",
+          [2],
+          "record-del key must be string, got " + typeName(rdKeyR.value),
+        );
+      const rdNewMap = new Map(rdRecR.value.value);
+      rdNewMap.delete(rdKeyR.value.value);
+      return ok({ kind: "record", value: rdNewMap });
+    }
+
+    case "record-keys": {
+      if (arr.length !== 2) return err("ARITY_ERROR", [], "record-keys requires 1 arg");
+      const rkRecR = prependPath(yield* evalGen(at(arr, 1), env), 1);
+      if (!rkRecR.ok) return rkRecR;
+      if (rkRecR.value.kind !== "record")
+        return err("TYPE_ERROR", [1], "record-keys requires record, got " + typeName(rkRecR.value));
+      const rkKeys: Value[] = [...rkRecR.value.value.keys()].map((k) => ({
+        kind: "string" as const,
+        value: k,
+      }));
+      return ok({ kind: "array", value: rkKeys });
+    }
+
+    case "record-vals": {
+      if (arr.length !== 2) return err("ARITY_ERROR", [], "record-vals requires 1 arg");
+      const rvRecR = prependPath(yield* evalGen(at(arr, 1), env), 1);
+      if (!rvRecR.ok) return rvRecR;
+      if (rvRecR.value.kind !== "record")
+        return err("TYPE_ERROR", [1], "record-vals requires record, got " + typeName(rvRecR.value));
+      return ok({ kind: "array", value: [...rvRecR.value.value.values()] });
+    }
+
+    case "record-merge": {
+      if (arr.length !== 3)
+        return err(
+          "ARITY_ERROR",
+          [],
+          "record-merge requires 2 args, got " + String(arr.length - 1),
+        );
+      const rm1R = prependPath(yield* evalGen(at(arr, 1), env), 1);
+      if (!rm1R.ok) return rm1R;
+      const rm2R = prependPath(yield* evalGen(at(arr, 2), env), 2);
+      if (!rm2R.ok) return rm2R;
+      if (rm1R.value.kind !== "record")
+        return err("TYPE_ERROR", [1], "record-merge requires record, got " + typeName(rm1R.value));
+      if (rm2R.value.kind !== "record")
+        return err("TYPE_ERROR", [2], "record-merge requires record, got " + typeName(rm2R.value));
+      const rmMerged = new Map(rm1R.value.value);
+      for (const [k, v] of rm2R.value.value) {
+        rmMerged.set(k, v);
+      }
+      return ok({ kind: "record", value: rmMerged });
+    }
+
+    // --- String primitives ---
+    case "str-len": {
+      if (arr.length !== 2) return err("ARITY_ERROR", [], "str-len requires 1 arg");
+      const slR = prependPath(yield* evalGen(at(arr, 1), env), 1);
+      if (!slR.ok) return slR;
+      if (slR.value.kind !== "string")
+        return err("TYPE_ERROR", [1], "str-len requires string, got " + typeName(slR.value));
+      return ok({ kind: "int", value: BigInt(slR.value.value.length) });
+    }
+
+    case "str-get": {
+      if (arr.length !== 3)
+        return err("ARITY_ERROR", [], "str-get requires 2 args, got " + String(arr.length - 1));
+      const sgStrR = prependPath(yield* evalGen(at(arr, 1), env), 1);
+      if (!sgStrR.ok) return sgStrR;
+      if (sgStrR.value.kind !== "string")
+        return err("TYPE_ERROR", [1], "str-get requires string, got " + typeName(sgStrR.value));
+      const sgIdxR = prependPath(yield* evalGen(at(arr, 2), env), 2);
+      if (!sgIdxR.ok) return sgIdxR;
+      if (!isInt(sgIdxR.value))
+        return err("TYPE_ERROR", [2], "str-get index must be int, got " + typeName(sgIdxR.value));
+      const sgCp = sgStrR.value.value.codePointAt(Number(sgIdxR.value.value));
+      if (sgCp === undefined) return ok(NULL);
+      return ok({ kind: "int", value: BigInt(sgCp) });
+    }
+
+    case "str-concat": {
+      if (arr.length !== 3)
+        return err("ARITY_ERROR", [], "str-concat requires 2 args, got " + String(arr.length - 1));
+      const sc1R = prependPath(yield* evalGen(at(arr, 1), env), 1);
+      if (!sc1R.ok) return sc1R;
+      if (sc1R.value.kind !== "string")
+        return err("TYPE_ERROR", [1], "str-concat requires string, got " + typeName(sc1R.value));
+      const sc2R = prependPath(yield* evalGen(at(arr, 2), env), 2);
+      if (!sc2R.ok) return sc2R;
+      if (sc2R.value.kind !== "string")
+        return err("TYPE_ERROR", [2], "str-concat requires string, got " + typeName(sc2R.value));
+      return ok({ kind: "string", value: sc1R.value.value + sc2R.value.value });
+    }
+
+    case "str-slice": {
+      if (arr.length !== 4)
+        return err("ARITY_ERROR", [], "str-slice requires 3 args, got " + String(arr.length - 1));
+      const ssStrR = prependPath(yield* evalGen(at(arr, 1), env), 1);
+      if (!ssStrR.ok) return ssStrR;
+      if (ssStrR.value.kind !== "string")
+        return err("TYPE_ERROR", [1], "str-slice requires string, got " + typeName(ssStrR.value));
+      const ssStartR = prependPath(yield* evalGen(at(arr, 2), env), 2);
+      if (!ssStartR.ok) return ssStartR;
+      if (!isInt(ssStartR.value))
+        return err(
+          "TYPE_ERROR",
+          [2],
+          "str-slice start must be int, got " + typeName(ssStartR.value),
+        );
+      const ssEndR = prependPath(yield* evalGen(at(arr, 3), env), 3);
+      if (!ssEndR.ok) return ssEndR;
+      if (!isInt(ssEndR.value))
+        return err("TYPE_ERROR", [3], "str-slice end must be int, got " + typeName(ssEndR.value));
+      return ok({
+        kind: "string",
+        value: ssStrR.value.value.slice(Number(ssStartR.value.value), Number(ssEndR.value.value)),
+      });
+    }
+
+    case "str-cmp": {
+      if (arr.length !== 3)
+        return err("ARITY_ERROR", [], "str-cmp requires 2 args, got " + String(arr.length - 1));
+      const sca1R = prependPath(yield* evalGen(at(arr, 1), env), 1);
+      if (!sca1R.ok) return sca1R;
+      if (sca1R.value.kind !== "string")
+        return err("TYPE_ERROR", [1], "str-cmp requires string, got " + typeName(sca1R.value));
+      const sca2R = prependPath(yield* evalGen(at(arr, 2), env), 2);
+      if (!sca2R.ok) return sca2R;
+      if (sca2R.value.kind !== "string")
+        return err("TYPE_ERROR", [2], "str-cmp requires string, got " + typeName(sca2R.value));
+      const scaCmp =
+        sca1R.value.value < sca2R.value.value ? -1 : sca1R.value.value > sca2R.value.value ? 1 : 0;
+      return ok({ kind: "int", value: BigInt(scaCmp) });
+    }
+
+    case "parse-int": {
+      if (arr.length !== 2) return err("ARITY_ERROR", [], "parse-int requires 1 arg");
+      const piR = prependPath(yield* evalGen(at(arr, 1), env), 1);
+      if (!piR.ok) return piR;
+      if (piR.value.kind !== "string")
+        return err("TYPE_ERROR", [1], "parse-int requires string, got " + typeName(piR.value));
+      const piN = parseInt(piR.value.value, 10);
+      if (isNaN(piN)) return ok(NULL);
+      return ok({ kind: "int", value: BigInt(Math.trunc(piN)) });
+    }
+
+    case "parse-float": {
+      if (arr.length !== 2) return err("ARITY_ERROR", [], "parse-float requires 1 arg");
+      const pfR = prependPath(yield* evalGen(at(arr, 1), env), 1);
+      if (!pfR.ok) return pfR;
+      if (pfR.value.kind !== "string")
+        return err("TYPE_ERROR", [1], "parse-float requires string, got " + typeName(pfR.value));
+      const pfN = parseFloat(pfR.value.value);
+      if (isNaN(pfN)) return ok(NULL);
+      return ok({ kind: "float", value: pfN });
+    }
+
+    // --- Math primitives ---
+    case "floor": {
+      if (arr.length !== 2) return err("ARITY_ERROR", [], "floor requires 1 arg");
+      const flR = prependPath(yield* evalGen(at(arr, 1), env), 1);
+      if (!flR.ok) return flR;
+      if (!isNumeric(flR.value))
+        return err("TYPE_ERROR", [1], "floor requires number, got " + typeName(flR.value));
+      if (isInt(flR.value)) return ok(flR.value);
+      return ok({ kind: "float", value: Math.floor(flR.value.value) });
+    }
+
+    case "ceil": {
+      if (arr.length !== 2) return err("ARITY_ERROR", [], "ceil requires 1 arg");
+      const ceR = prependPath(yield* evalGen(at(arr, 1), env), 1);
+      if (!ceR.ok) return ceR;
+      if (!isNumeric(ceR.value))
+        return err("TYPE_ERROR", [1], "ceil requires number, got " + typeName(ceR.value));
+      if (isInt(ceR.value)) return ok(ceR.value);
+      return ok({ kind: "float", value: Math.ceil(ceR.value.value) });
+    }
+
+    case "round": {
+      if (arr.length !== 2) return err("ARITY_ERROR", [], "round requires 1 arg");
+      const roR = prependPath(yield* evalGen(at(arr, 1), env), 1);
+      if (!roR.ok) return roR;
+      if (!isNumeric(roR.value))
+        return err("TYPE_ERROR", [1], "round requires number, got " + typeName(roR.value));
+      if (isInt(roR.value)) return ok(roR.value);
+      return ok({ kind: "float", value: Math.round(roR.value.value) });
+    }
+
+    case "abs": {
+      if (arr.length !== 2) return err("ARITY_ERROR", [], "abs requires 1 arg");
+      const abR = prependPath(yield* evalGen(at(arr, 1), env), 1);
+      if (!abR.ok) return abR;
+      if (isInt(abR.value))
+        return ok({
+          kind: "int",
+          value: abR.value.value < 0n ? -abR.value.value : abR.value.value,
+        });
+      if (abR.value.kind === "float")
+        return ok({ kind: "float", value: Math.abs(abR.value.value) });
+      return err("TYPE_ERROR", [1], "abs requires number, got " + typeName(abR.value));
+    }
+
+    case "min": {
+      if (arr.length !== 3) return err("ARITY_ERROR", [], "min requires 2 args");
+      const mnAR = prependPath(yield* evalGen(at(arr, 1), env), 1);
+      if (!mnAR.ok) return mnAR;
+      const mnBR = prependPath(yield* evalGen(at(arr, 2), env), 2);
+      if (!mnBR.ok) return mnBR;
+      if (!isNumeric(mnAR.value))
+        return err("TYPE_ERROR", [1], "min requires number, got " + typeName(mnAR.value));
+      if (!isNumeric(mnBR.value))
+        return err("TYPE_ERROR", [2], "min requires number, got " + typeName(mnBR.value));
+      if (isInt(mnAR.value) && isInt(mnBR.value))
+        return ok({
+          kind: "int",
+          value: mnAR.value.value < mnBR.value.value ? mnAR.value.value : mnBR.value.value,
+        });
+      return ok({ kind: "float", value: Math.min(toFloat(mnAR.value), toFloat(mnBR.value)) });
+    }
+
+    case "max": {
+      if (arr.length !== 3) return err("ARITY_ERROR", [], "max requires 2 args");
+      const mxAR = prependPath(yield* evalGen(at(arr, 1), env), 1);
+      if (!mxAR.ok) return mxAR;
+      const mxBR = prependPath(yield* evalGen(at(arr, 2), env), 2);
+      if (!mxBR.ok) return mxBR;
+      if (!isNumeric(mxAR.value))
+        return err("TYPE_ERROR", [1], "max requires number, got " + typeName(mxAR.value));
+      if (!isNumeric(mxBR.value))
+        return err("TYPE_ERROR", [2], "max requires number, got " + typeName(mxBR.value));
+      if (isInt(mxAR.value) && isInt(mxBR.value))
+        return ok({
+          kind: "int",
+          value: mxAR.value.value > mxBR.value.value ? mxAR.value.value : mxBR.value.value,
+        });
+      return ok({ kind: "float", value: Math.max(toFloat(mxAR.value), toFloat(mxBR.value)) });
+    }
+
+    case "pow": {
+      if (arr.length !== 3) return err("ARITY_ERROR", [], "pow requires 2 args");
+      const pwAR = prependPath(yield* evalGen(at(arr, 1), env), 1);
+      if (!pwAR.ok) return pwAR;
+      const pwBR = prependPath(yield* evalGen(at(arr, 2), env), 2);
+      if (!pwBR.ok) return pwBR;
+      if (!isNumeric(pwAR.value))
+        return err("TYPE_ERROR", [1], "pow requires number, got " + typeName(pwAR.value));
+      if (!isNumeric(pwBR.value))
+        return err("TYPE_ERROR", [2], "pow requires number, got " + typeName(pwBR.value));
+      return ok({ kind: "float", value: Math.pow(toFloat(pwAR.value), toFloat(pwBR.value)) });
+    }
+
+    case "sqrt": {
+      if (arr.length !== 2) return err("ARITY_ERROR", [], "sqrt requires 1 arg");
+      const sqR = prependPath(yield* evalGen(at(arr, 1), env), 1);
+      if (!sqR.ok) return sqR;
+      if (!isNumeric(sqR.value))
+        return err("TYPE_ERROR", [1], "sqrt requires number, got " + typeName(sqR.value));
+      return ok({ kind: "float", value: Math.sqrt(toFloat(sqR.value)) });
+    }
+
+    case "int->float": {
+      if (arr.length !== 2) return err("ARITY_ERROR", [], "int->float requires 1 arg");
+      const ifR = prependPath(yield* evalGen(at(arr, 1), env), 1);
+      if (!ifR.ok) return ifR;
+      if (!isInt(ifR.value))
+        return err("TYPE_ERROR", [1], "int->float requires int, got " + typeName(ifR.value));
+      return ok({ kind: "float", value: Number(ifR.value.value) });
+    }
+
+    case "float->int": {
+      if (arr.length !== 2) return err("ARITY_ERROR", [], "float->int requires 1 arg");
+      const fiR = prependPath(yield* evalGen(at(arr, 1), env), 1);
+      if (!fiR.ok) return fiR;
+      if (fiR.value.kind !== "float")
+        return err("TYPE_ERROR", [1], "float->int requires float, got " + typeName(fiR.value));
+      return ok({ kind: "int", value: BigInt(Math.trunc(fiR.value.value)) });
+    }
+
+    // --- Bitwise primitives ---
+    case "bit-and": {
+      if (arr.length !== 3) return err("ARITY_ERROR", [], "bit-and requires 2 args");
+      const baAR = prependPath(yield* evalGen(at(arr, 1), env), 1);
+      if (!baAR.ok) return baAR;
+      const baBR = prependPath(yield* evalGen(at(arr, 2), env), 2);
+      if (!baBR.ok) return baBR;
+      if (!isInt(baAR.value))
+        return err("TYPE_ERROR", [1], "bit-and requires int, got " + typeName(baAR.value));
+      if (!isInt(baBR.value))
+        return err("TYPE_ERROR", [2], "bit-and requires int, got " + typeName(baBR.value));
+      return ok({ kind: "int", value: baAR.value.value & baBR.value.value });
+    }
+
+    case "bit-or": {
+      if (arr.length !== 3) return err("ARITY_ERROR", [], "bit-or requires 2 args");
+      const boAR = prependPath(yield* evalGen(at(arr, 1), env), 1);
+      if (!boAR.ok) return boAR;
+      const boBR = prependPath(yield* evalGen(at(arr, 2), env), 2);
+      if (!boBR.ok) return boBR;
+      if (!isInt(boAR.value))
+        return err("TYPE_ERROR", [1], "bit-or requires int, got " + typeName(boAR.value));
+      if (!isInt(boBR.value))
+        return err("TYPE_ERROR", [2], "bit-or requires int, got " + typeName(boBR.value));
+      return ok({ kind: "int", value: boAR.value.value | boBR.value.value });
+    }
+
+    case "bit-xor": {
+      if (arr.length !== 3) return err("ARITY_ERROR", [], "bit-xor requires 2 args");
+      const bxAR = prependPath(yield* evalGen(at(arr, 1), env), 1);
+      if (!bxAR.ok) return bxAR;
+      const bxBR = prependPath(yield* evalGen(at(arr, 2), env), 2);
+      if (!bxBR.ok) return bxBR;
+      if (!isInt(bxAR.value))
+        return err("TYPE_ERROR", [1], "bit-xor requires int, got " + typeName(bxAR.value));
+      if (!isInt(bxBR.value))
+        return err("TYPE_ERROR", [2], "bit-xor requires int, got " + typeName(bxBR.value));
+      return ok({ kind: "int", value: bxAR.value.value ^ bxBR.value.value });
+    }
+
+    case "bit-not": {
+      if (arr.length !== 2) return err("ARITY_ERROR", [], "bit-not requires 1 arg");
+      const bnAR = prependPath(yield* evalGen(at(arr, 1), env), 1);
+      if (!bnAR.ok) return bnAR;
+      if (!isInt(bnAR.value))
+        return err("TYPE_ERROR", [1], "bit-not requires int, got " + typeName(bnAR.value));
+      return ok({ kind: "int", value: ~bnAR.value.value });
+    }
+
+    case "bit-shl": {
+      if (arr.length !== 3) return err("ARITY_ERROR", [], "bit-shl requires 2 args");
+      const bslAR = prependPath(yield* evalGen(at(arr, 1), env), 1);
+      if (!bslAR.ok) return bslAR;
+      const bslNR = prependPath(yield* evalGen(at(arr, 2), env), 2);
+      if (!bslNR.ok) return bslNR;
+      if (!isInt(bslAR.value))
+        return err("TYPE_ERROR", [1], "bit-shl requires int, got " + typeName(bslAR.value));
+      if (!isInt(bslNR.value))
+        return err(
+          "TYPE_ERROR",
+          [2],
+          "bit-shl shift amount must be int, got " + typeName(bslNR.value),
+        );
+      return ok({ kind: "int", value: bslAR.value.value << bslNR.value.value });
+    }
+
+    case "bit-shr": {
+      if (arr.length !== 3) return err("ARITY_ERROR", [], "bit-shr requires 2 args");
+      const bsrAR = prependPath(yield* evalGen(at(arr, 1), env), 1);
+      if (!bsrAR.ok) return bsrAR;
+      const bsrNR = prependPath(yield* evalGen(at(arr, 2), env), 2);
+      if (!bsrNR.ok) return bsrNR;
+      if (!isInt(bsrAR.value))
+        return err("TYPE_ERROR", [1], "bit-shr requires int, got " + typeName(bsrAR.value));
+      if (!isInt(bsrNR.value))
+        return err(
+          "TYPE_ERROR",
+          [2],
+          "bit-shr shift amount must be int, got " + typeName(bsrNR.value),
+        );
+      return ok({ kind: "int", value: bsrAR.value.value >> bsrNR.value.value });
+    }
+
     // --- String ops ---
     case "concat": {
       if (arr.length < 2) return err("ARITY_ERROR", [], "concat requires at least 1 arg");
@@ -788,6 +1252,48 @@ function* evalGen(expr: Expr, env: Env): EvalGen {
         return ok({ kind: "float", value: n });
       }
       return ok(NULL);
+    }
+
+    case "str-len": {
+      if (arr.length !== 2) return err("ARITY_ERROR", [], "str-len requires 1 arg");
+      const sR = prependPath(yield* evalGen(at(arr, 1), env), 1);
+      if (!sR.ok) return sR;
+      if (sR.value.kind !== "string") {
+        return err("TYPE_ERROR", [1], "str-len requires string, got " + typeName(sR.value));
+      }
+      return ok({ kind: "int", value: BigInt(sR.value.value.length) });
+    }
+
+    case "min": {
+      if (arr.length !== 3) return err("ARITY_ERROR", [], "min requires 2 args");
+      const ar = prependPath(yield* evalGen(at(arr, 1), env), 1);
+      if (!ar.ok) return ar;
+      const br = prependPath(yield* evalGen(at(arr, 2), env), 2);
+      if (!br.ok) return br;
+      if (!isNumeric(ar.value))
+        return err("TYPE_ERROR", [1], "min requires number, got " + typeName(ar.value));
+      if (!isNumeric(br.value))
+        return err("TYPE_ERROR", [2], "min requires number, got " + typeName(br.value));
+      if (isInt(ar.value) && isInt(br.value)) {
+        return ok(ar.value.value <= br.value.value ? ar.value : br.value);
+      }
+      return ok(toFloat(ar.value) <= toFloat(br.value) ? ar.value : br.value);
+    }
+
+    case "max": {
+      if (arr.length !== 3) return err("ARITY_ERROR", [], "max requires 2 args");
+      const ar = prependPath(yield* evalGen(at(arr, 1), env), 1);
+      if (!ar.ok) return ar;
+      const br = prependPath(yield* evalGen(at(arr, 2), env), 2);
+      if (!br.ok) return br;
+      if (!isNumeric(ar.value))
+        return err("TYPE_ERROR", [1], "max requires number, got " + typeName(ar.value));
+      if (!isNumeric(br.value))
+        return err("TYPE_ERROR", [2], "max requires number, got " + typeName(br.value));
+      if (isInt(ar.value) && isInt(br.value)) {
+        return ok(ar.value.value >= br.value.value ? ar.value : br.value);
+      }
+      return ok(toFloat(ar.value) >= toFloat(br.value) ? ar.value : br.value);
     }
 
     // --- Functions ---

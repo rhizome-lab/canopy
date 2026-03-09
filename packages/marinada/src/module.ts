@@ -1,27 +1,41 @@
 import type { Module } from "./types.ts";
 import { evaluate, EMPTY_ENV } from "./evaluate.ts";
-import type { EvalResult } from "./evaluate.ts";
+import type { EvalResult, Value } from "./evaluate.ts";
 import { typecheckModule } from "./typecheck.ts";
 import type { TypecheckResult } from "./typecheck.ts";
+import { STD_BINDINGS } from "./std.ts";
 
 export type { EvalResult, TypecheckResult };
 
 /**
  * Evaluate a full module.
  *
- * Imports at the evaluator level are stubs: the evaluator already handles any
- * uppercase-tagged call as a variant constructor, so lib:std tags (None, Some,
- * Ok, Err) just work without additional wiring. The exports list is stored for
- * future use but not enforced at this stage.
+ * For `lib:std` imports, each requested binding is evaluated from its STD_BINDINGS
+ * expression and added to the environment before evaluating module.main.
+ * For other import schemes, they remain stubs (names are not bound).
  *
- * Returns the result of evaluating module.main in the base environment.
+ * Variant constructors (None, Some, Ok, Err, etc.) are handled automatically by
+ * the evaluator's uppercase-tag convention — no env wiring required.
  */
 export function evaluateModule(module: Module): EvalResult {
-  // The evaluator handles variant constructors via the uppercase-tag convention,
-  // so no additional env wiring is required for type def variants or lib:std tags.
-  // Imports from local: and https: are stubs — no runtime loading yet.
-  // exports list is accessible via module.exports for future enforcement.
-  return evaluate(module.main, EMPTY_ENV);
+  // Build env with lib:std bindings for any requested imports
+  let env = EMPTY_ENV;
+
+  for (const imp of module.imports ?? []) {
+    if (imp.from !== "lib:std") continue;
+
+    const bindings: Record<string, Value> = {};
+    for (const name of imp.import) {
+      const binding = STD_BINDINGS.find((b) => b.name === name);
+      if (binding === undefined) continue;
+      const result = evaluate(binding.expr, EMPTY_ENV);
+      if (!result.ok) return result;
+      bindings[name] = result.value;
+    }
+    env = env.extend(bindings);
+  }
+
+  return evaluate(module.main, env);
 }
 
 // Re-export typecheckModule so callers can import both from module.ts

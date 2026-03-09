@@ -18,6 +18,14 @@
             bun
             nodePackages.typescript
             nodePackages.typescript-language-server
+            # Rust toolchain
+            rustc
+            cargo
+            rust-analyzer
+            clippy
+            rustfmt
+            mold
+            clang
             # Runtime libs
             stdenv.cc.cc
           ];

@@ -746,6 +746,329 @@ function inferType(expr: Expr, env: TypeEnv, ctx: Ctx): MType {
       return { kind: "array", elem: UNKNOWN };
     }
 
+    // --- Array primitives ---
+    case "array": {
+      for (let i = 1; i < arr.length; i++) {
+        withPath(ctx, i, (sub) => inferType(at(arr, i), env, sub));
+      }
+      return { kind: "array", elem: UNKNOWN };
+    }
+
+    case "array-get": {
+      if (arr.length !== 3) {
+        addError(ctx, "ARITY_ERROR", "array-get requires 2 args, got " + String(arr.length - 1));
+        return UNKNOWN;
+      }
+      withPath(ctx, 1, (sub) => inferType(at(arr, 1), env, sub));
+      withPath(ctx, 2, (sub) => inferType(at(arr, 2), env, sub));
+      return UNKNOWN;
+    }
+
+    case "array-push": {
+      if (arr.length !== 3) {
+        addError(ctx, "ARITY_ERROR", "array-push requires 2 args, got " + String(arr.length - 1));
+        return UNKNOWN;
+      }
+      withPath(ctx, 1, (sub) => inferType(at(arr, 1), env, sub));
+      withPath(ctx, 2, (sub) => inferType(at(arr, 2), env, sub));
+      return { kind: "array", elem: UNKNOWN };
+    }
+
+    case "array-slice": {
+      if (arr.length !== 3 && arr.length !== 4) {
+        addError(
+          ctx,
+          "ARITY_ERROR",
+          "array-slice requires 2 or 3 args, got " + String(arr.length - 1),
+        );
+        return UNKNOWN;
+      }
+      withPath(ctx, 1, (sub) => inferType(at(arr, 1), env, sub));
+      withPath(ctx, 2, (sub) => inferType(at(arr, 2), env, sub));
+      if (arr.length === 4) withPath(ctx, 3, (sub) => inferType(at(arr, 3), env, sub));
+      return { kind: "array", elem: UNKNOWN };
+    }
+
+    // --- Record aliases ---
+    case "record-get": {
+      if (arr.length !== 3) {
+        addError(ctx, "ARITY_ERROR", "record-get requires 2 args, got " + String(arr.length - 1));
+        return UNKNOWN;
+      }
+      withPath(ctx, 1, (sub) => inferType(at(arr, 1), env, sub));
+      withPath(ctx, 2, (sub) => inferType(at(arr, 2), env, sub));
+      return UNKNOWN;
+    }
+
+    case "record-set": {
+      if (arr.length !== 4) {
+        addError(ctx, "ARITY_ERROR", "record-set requires 3 args, got " + String(arr.length - 1));
+        return UNKNOWN;
+      }
+      withPath(ctx, 1, (sub) => inferType(at(arr, 1), env, sub));
+      withPath(ctx, 2, (sub) => inferType(at(arr, 2), env, sub));
+      withPath(ctx, 3, (sub) => inferType(at(arr, 3), env, sub));
+      return UNKNOWN;
+    }
+
+    case "record-del": {
+      if (arr.length !== 3) {
+        addError(ctx, "ARITY_ERROR", "record-del requires 2 args, got " + String(arr.length - 1));
+        return UNKNOWN;
+      }
+      withPath(ctx, 1, (sub) => inferType(at(arr, 1), env, sub));
+      withPath(ctx, 2, (sub) => inferType(at(arr, 2), env, sub));
+      return { kind: "record", fields: new Map() };
+    }
+
+    case "record-keys": {
+      if (arr.length !== 2) {
+        addError(ctx, "ARITY_ERROR", "record-keys requires 1 arg");
+        return { kind: "array", elem: STRING };
+      }
+      withPath(ctx, 1, (sub) => inferType(at(arr, 1), env, sub));
+      return { kind: "array", elem: STRING };
+    }
+
+    case "record-vals": {
+      if (arr.length !== 2) {
+        addError(ctx, "ARITY_ERROR", "record-vals requires 1 arg");
+        return { kind: "array", elem: UNKNOWN };
+      }
+      withPath(ctx, 1, (sub) => inferType(at(arr, 1), env, sub));
+      return { kind: "array", elem: UNKNOWN };
+    }
+
+    case "record-merge": {
+      if (arr.length !== 3) {
+        addError(ctx, "ARITY_ERROR", "record-merge requires 2 args, got " + String(arr.length - 1));
+        return UNKNOWN;
+      }
+      withPath(ctx, 1, (sub) => inferType(at(arr, 1), env, sub));
+      withPath(ctx, 2, (sub) => inferType(at(arr, 2), env, sub));
+      return { kind: "record", fields: new Map() };
+    }
+
+    // --- String primitives ---
+    case "str-len": {
+      if (arr.length !== 2) {
+        addError(ctx, "ARITY_ERROR", "str-len requires 1 arg");
+        return INT;
+      }
+      withPath(ctx, 1, (sub) => inferType(at(arr, 1), env, sub));
+      return INT;
+    }
+
+    case "str-get": {
+      if (arr.length !== 3) {
+        addError(ctx, "ARITY_ERROR", "str-get requires 2 args, got " + String(arr.length - 1));
+        return makeUnion(INT, NULL_T);
+      }
+      withPath(ctx, 1, (sub) => inferType(at(arr, 1), env, sub));
+      withPath(ctx, 2, (sub) => inferType(at(arr, 2), env, sub));
+      return makeUnion(INT, NULL_T);
+    }
+
+    case "str-concat": {
+      if (arr.length !== 3) {
+        addError(ctx, "ARITY_ERROR", "str-concat requires 2 args, got " + String(arr.length - 1));
+        return STRING;
+      }
+      withPath(ctx, 1, (sub) => inferType(at(arr, 1), env, sub));
+      withPath(ctx, 2, (sub) => inferType(at(arr, 2), env, sub));
+      return STRING;
+    }
+
+    case "str-slice": {
+      if (arr.length !== 4) {
+        addError(ctx, "ARITY_ERROR", "str-slice requires 3 args, got " + String(arr.length - 1));
+        return STRING;
+      }
+      withPath(ctx, 1, (sub) => inferType(at(arr, 1), env, sub));
+      withPath(ctx, 2, (sub) => inferType(at(arr, 2), env, sub));
+      withPath(ctx, 3, (sub) => inferType(at(arr, 3), env, sub));
+      return STRING;
+    }
+
+    case "str-cmp": {
+      if (arr.length !== 3) {
+        addError(ctx, "ARITY_ERROR", "str-cmp requires 2 args, got " + String(arr.length - 1));
+        return INT;
+      }
+      withPath(ctx, 1, (sub) => inferType(at(arr, 1), env, sub));
+      withPath(ctx, 2, (sub) => inferType(at(arr, 2), env, sub));
+      return INT;
+    }
+
+    case "parse-int": {
+      if (arr.length !== 2) {
+        addError(ctx, "ARITY_ERROR", "parse-int requires 1 arg");
+        return makeUnion(INT, NULL_T);
+      }
+      withPath(ctx, 1, (sub) => inferType(at(arr, 1), env, sub));
+      return makeUnion(INT, NULL_T);
+    }
+
+    case "parse-float": {
+      if (arr.length !== 2) {
+        addError(ctx, "ARITY_ERROR", "parse-float requires 1 arg");
+        return makeUnion(FLOAT, NULL_T);
+      }
+      withPath(ctx, 1, (sub) => inferType(at(arr, 1), env, sub));
+      return makeUnion(FLOAT, NULL_T);
+    }
+
+    // --- Math primitives ---
+    case "floor":
+    case "ceil":
+    case "round": {
+      if (arr.length !== 2) {
+        addError(ctx, "ARITY_ERROR", op + " requires 1 arg");
+        return UNKNOWN;
+      }
+      const xT = withPath(ctx, 1, (sub) => inferType(at(arr, 1), env, sub));
+      if (!isNumeric(xT)) {
+        withPath(ctx, 1, (sub) =>
+          addError(sub, "TYPE_MISMATCH", op + " requires number, got " + typeName(xT), {
+            expected: "int | float",
+            got: typeName(xT),
+          }),
+        );
+        return UNKNOWN;
+      }
+      return xT.kind === "int" ? INT : FLOAT;
+    }
+
+    case "abs": {
+      if (arr.length !== 2) {
+        addError(ctx, "ARITY_ERROR", "abs requires 1 arg");
+        return UNKNOWN;
+      }
+      const xT = withPath(ctx, 1, (sub) => inferType(at(arr, 1), env, sub));
+      if (!isNumeric(xT)) {
+        withPath(ctx, 1, (sub) =>
+          addError(sub, "TYPE_MISMATCH", "abs requires number, got " + typeName(xT), {
+            expected: "int | float",
+            got: typeName(xT),
+          }),
+        );
+        return UNKNOWN;
+      }
+      return xT;
+    }
+
+    case "min":
+    case "max": {
+      if (arr.length !== 3) {
+        addError(ctx, "ARITY_ERROR", op + " requires 2 args");
+        return UNKNOWN;
+      }
+      const tMinMaxA = withPath(ctx, 1, (sub) => inferType(at(arr, 1), env, sub));
+      const tMinMaxB = withPath(ctx, 2, (sub) => inferType(at(arr, 2), env, sub));
+      if (!isNumeric(tMinMaxA)) {
+        withPath(ctx, 1, (sub) =>
+          addError(sub, "TYPE_MISMATCH", op + " requires number, got " + typeName(tMinMaxA), {
+            expected: "int | float",
+            got: typeName(tMinMaxA),
+          }),
+        );
+      }
+      if (!isNumeric(tMinMaxB)) {
+        withPath(ctx, 2, (sub) =>
+          addError(sub, "TYPE_MISMATCH", op + " requires number, got " + typeName(tMinMaxB), {
+            expected: "int | float",
+            got: typeName(tMinMaxB),
+          }),
+        );
+      }
+      return arithResult(tMinMaxA, tMinMaxB) ?? UNKNOWN;
+    }
+
+    case "pow": {
+      if (arr.length !== 3) {
+        addError(ctx, "ARITY_ERROR", "pow requires 2 args");
+        return FLOAT;
+      }
+      withPath(ctx, 1, (sub) => inferType(at(arr, 1), env, sub));
+      withPath(ctx, 2, (sub) => inferType(at(arr, 2), env, sub));
+      return FLOAT;
+    }
+
+    case "sqrt": {
+      if (arr.length !== 2) {
+        addError(ctx, "ARITY_ERROR", "sqrt requires 1 arg");
+        return FLOAT;
+      }
+      withPath(ctx, 1, (sub) => inferType(at(arr, 1), env, sub));
+      return FLOAT;
+    }
+
+    case "int->float": {
+      if (arr.length !== 2) {
+        addError(ctx, "ARITY_ERROR", "int->float requires 1 arg");
+        return FLOAT;
+      }
+      withPath(ctx, 1, (sub) => inferType(at(arr, 1), env, sub));
+      return FLOAT;
+    }
+
+    case "float->int": {
+      if (arr.length !== 2) {
+        addError(ctx, "ARITY_ERROR", "float->int requires 1 arg");
+        return INT;
+      }
+      withPath(ctx, 1, (sub) => inferType(at(arr, 1), env, sub));
+      return INT;
+    }
+
+    // --- Bitwise primitives ---
+    case "bit-and":
+    case "bit-or":
+    case "bit-xor":
+    case "bit-shl":
+    case "bit-shr": {
+      if (arr.length !== 3) {
+        addError(ctx, "ARITY_ERROR", op + " requires 2 args");
+        return INT;
+      }
+      const tBitA = withPath(ctx, 1, (sub) => inferType(at(arr, 1), env, sub));
+      const tBitB = withPath(ctx, 2, (sub) => inferType(at(arr, 2), env, sub));
+      if (tBitA.kind !== "int" && tBitA.kind !== "unknown") {
+        withPath(ctx, 1, (sub) =>
+          addError(sub, "TYPE_MISMATCH", op + " requires int, got " + typeName(tBitA), {
+            expected: "int",
+            got: typeName(tBitA),
+          }),
+        );
+      }
+      if (tBitB.kind !== "int" && tBitB.kind !== "unknown") {
+        withPath(ctx, 2, (sub) =>
+          addError(sub, "TYPE_MISMATCH", op + " requires int, got " + typeName(tBitB), {
+            expected: "int",
+            got: typeName(tBitB),
+          }),
+        );
+      }
+      return INT;
+    }
+
+    case "bit-not": {
+      if (arr.length !== 2) {
+        addError(ctx, "ARITY_ERROR", "bit-not requires 1 arg");
+        return INT;
+      }
+      const tBitNotA = withPath(ctx, 1, (sub) => inferType(at(arr, 1), env, sub));
+      if (tBitNotA.kind !== "int" && tBitNotA.kind !== "unknown") {
+        withPath(ctx, 1, (sub) =>
+          addError(sub, "TYPE_MISMATCH", "bit-not requires int, got " + typeName(tBitNotA), {
+            expected: "int",
+            got: typeName(tBitNotA),
+          }),
+        );
+      }
+      return INT;
+    }
+
     // --- String ops ---
     case "concat": {
       if (arr.length < 2) {

@@ -792,3 +792,244 @@ function evalOk(expr: Expr, env = EMPTY_ENV): Value {
   if (!r.ok) throw new Error(`Expected ok, got error: ${JSON.stringify(r.error)}`);
   return r.value;
 }
+
+describe("array primitives", () => {
+  it("array constructs empty array", () => {
+    expect(evaluate(["array"])).toEqual(ok(arr()));
+  });
+
+  it("array constructs from args", () => {
+    expect(evaluate(["array", 1, 2, 3])).toEqual(ok(arr(int(1), int(2), int(3))));
+  });
+
+  it("array-get returns element at index", () => {
+    const env = EMPTY_ENV.extend({ a: arr(int(10), int(20), int(30)) });
+    expect(evaluate(["array-get", "a", 1], env)).toEqual(ok(int(20)));
+  });
+
+  it("array-get out of bounds returns null", () => {
+    const env = EMPTY_ENV.extend({ a: arr(int(1)) });
+    expect(evaluate(["array-get", "a", 5], env)).toEqual(ok(NULL));
+  });
+
+  it("array-push appends element", () => {
+    const env = EMPTY_ENV.extend({ a: arr(int(1), int(2)) });
+    expect(evaluate(["array-push", "a", 3], env)).toEqual(ok(arr(int(1), int(2), int(3))));
+  });
+
+  it("array-slice with start and end", () => {
+    const env = EMPTY_ENV.extend({ a: arr(int(0), int(1), int(2), int(3), int(4)) });
+    expect(evaluate(["array-slice", "a", 1, 3], env)).toEqual(ok(arr(int(1), int(2))));
+  });
+
+  it("array-slice with start only", () => {
+    const env = EMPTY_ENV.extend({ a: arr(int(0), int(1), int(2)) });
+    expect(evaluate(["array-slice", "a", 1], env)).toEqual(ok(arr(int(1), int(2))));
+  });
+});
+
+describe("record primitives", () => {
+  it("record-get returns value", () => {
+    const env = EMPTY_ENV.extend({ r: rec({ x: int(42) }), k: str("x") });
+    expect(evaluate(["record-get", "r", "k"], env)).toEqual(ok(int(42)));
+  });
+
+  it("record-get missing key returns null", () => {
+    const env = EMPTY_ENV.extend({ r: rec({ x: int(1) }), k: str("z") });
+    expect(evaluate(["record-get", "r", "k"], env)).toEqual(ok(NULL));
+  });
+
+  it("record-set returns new record with field set", () => {
+    const env = EMPTY_ENV.extend({ r: rec({ x: int(1) }), k: str("y") });
+    const result = evalOk(["record-set", "r", "k", 99], env);
+    expect(result.kind).toBe("record");
+    const m = (result as { kind: "record"; value: Map<string, Value> }).value;
+    expect(m.get("y")).toEqual(int(99));
+    expect(m.get("x")).toEqual(int(1));
+  });
+
+  it("record-del removes key", () => {
+    const env = EMPTY_ENV.extend({ r: rec({ a: int(1), b: int(2) }), k: str("a") });
+    const result = evalOk(["record-del", "r", "k"], env);
+    expect(result.kind).toBe("record");
+    const m = (result as { kind: "record"; value: Map<string, Value> }).value;
+    expect(m.has("a")).toBe(false);
+    expect(m.get("b")).toEqual(int(2));
+  });
+
+  it("record-keys returns keys", () => {
+    const env = EMPTY_ENV.extend({ r: rec({ a: int(1), b: int(2) }) });
+    const result = evalOk(["record-keys", "r"], env);
+    expect(result.kind).toBe("array");
+    const keys = (result as { kind: "array"; value: Value[] }).value.map(
+      (v) => (v as { kind: "string"; value: string }).value,
+    );
+    expect(keys.sort()).toEqual(["a", "b"]);
+  });
+
+  it("record-vals returns values", () => {
+    const env = EMPTY_ENV.extend({ r: rec({ x: int(7) }) });
+    expect(evaluate(["record-vals", "r"], env)).toEqual(ok(arr(int(7))));
+  });
+
+  it("record-merge merges two records", () => {
+    const env = EMPTY_ENV.extend({ r1: rec({ a: int(1) }), r2: rec({ b: int(2) }) });
+    const result = evalOk(["record-merge", "r1", "r2"], env);
+    expect(result.kind).toBe("record");
+    const m = (result as { kind: "record"; value: Map<string, Value> }).value;
+    expect(m.get("a")).toEqual(int(1));
+    expect(m.get("b")).toEqual(int(2));
+  });
+});
+
+describe("string primitives", () => {
+  it("str-len returns length", () => {
+    const env = EMPTY_ENV.extend({ s: str("hello") });
+    expect(evaluate(["str-len", "s"], env)).toEqual(ok(int(5)));
+  });
+
+  it("str-get returns codepoint", () => {
+    const env = EMPTY_ENV.extend({ s: str("ABC") });
+    expect(evaluate(["str-get", "s", 0], env)).toEqual(ok(int(65)));
+  });
+
+  it("str-get out of bounds returns null", () => {
+    const env = EMPTY_ENV.extend({ s: str("hi") });
+    expect(evaluate(["str-get", "s", 10], env)).toEqual(ok(NULL));
+  });
+
+  it("str-concat concatenates two strings", () => {
+    const env = EMPTY_ENV.extend({ a: str("foo"), b: str("bar") });
+    expect(evaluate(["str-concat", "a", "b"], env)).toEqual(ok(str("foobar")));
+  });
+
+  it("str-slice returns substring", () => {
+    const env = EMPTY_ENV.extend({ s: str("hello world") });
+    expect(evaluate(["str-slice", "s", 0, 5], env)).toEqual(ok(str("hello")));
+  });
+
+  it("str-cmp less than returns -1", () => {
+    const env = EMPTY_ENV.extend({ a: str("apple"), b: str("banana") });
+    expect(evaluate(["str-cmp", "a", "b"], env)).toEqual(ok(int(-1)));
+  });
+
+  it("str-cmp equal returns 0", () => {
+    const env = EMPTY_ENV.extend({ a: str("same"), b: str("same") });
+    expect(evaluate(["str-cmp", "a", "b"], env)).toEqual(ok(int(0)));
+  });
+
+  it("str-cmp greater than returns 1", () => {
+    const env = EMPTY_ENV.extend({ a: str("z"), b: str("a") });
+    expect(evaluate(["str-cmp", "a", "b"], env)).toEqual(ok(int(1)));
+  });
+
+  it("parse-int valid string", () => {
+    const env = EMPTY_ENV.extend({ s: str("42") });
+    expect(evaluate(["parse-int", "s"], env)).toEqual(ok(int(42)));
+  });
+
+  it("parse-int invalid string returns null", () => {
+    const env = EMPTY_ENV.extend({ s: str("abc") });
+    expect(evaluate(["parse-int", "s"], env)).toEqual(ok(NULL));
+  });
+
+  it("parse-float valid string", () => {
+    const env = EMPTY_ENV.extend({ s: str("3.14") });
+    const result = evalOk(["parse-float", "s"], env);
+    expect(result.kind).toBe("float");
+    expect((result as { kind: "float"; value: number }).value).toBeCloseTo(3.14);
+  });
+
+  it("parse-float invalid string returns null", () => {
+    const env = EMPTY_ENV.extend({ s: str("nope") });
+    expect(evaluate(["parse-float", "s"], env)).toEqual(ok(NULL));
+  });
+});
+
+describe("math primitives", () => {
+  it("floor of float", () => {
+    expect(evaluate(["floor", 3.7])).toEqual(ok(float(3.0)));
+  });
+
+  it("floor of int is identity", () => {
+    expect(evaluate(["floor", 5])).toEqual(ok(int(5)));
+  });
+
+  it("ceil of float", () => {
+    expect(evaluate(["ceil", 3.2])).toEqual(ok(float(4.0)));
+  });
+
+  it("round of float", () => {
+    expect(evaluate(["round", 3.5])).toEqual(ok(float(4.0)));
+  });
+
+  it("abs of negative int", () => {
+    expect(evaluate(["abs", -7])).toEqual(ok(int(7)));
+  });
+
+  it("abs of negative float", () => {
+    expect(evaluate(["abs", -2.5])).toEqual(ok(float(2.5)));
+  });
+
+  it("min of two ints", () => {
+    expect(evaluate(["min", 3, 5])).toEqual(ok(int(3)));
+  });
+
+  it("max of two ints", () => {
+    expect(evaluate(["max", 3, 5])).toEqual(ok(int(5)));
+  });
+
+  it("pow returns float", () => {
+    const result = evalOk(["pow", 2, 10]);
+    expect(result.kind).toBe("float");
+    expect((result as { kind: "float"; value: number }).value).toBeCloseTo(1024);
+  });
+
+  it("sqrt of float", () => {
+    const result = evalOk(["sqrt", 4]);
+    expect(result.kind).toBe("float");
+    expect((result as { kind: "float"; value: number }).value).toBeCloseTo(2.0);
+  });
+
+  it("int->float converts int to float", () => {
+    expect(evaluate(["int->float", 5])).toEqual(ok(float(5.0)));
+  });
+
+  it("float->int truncates toward zero", () => {
+    expect(evaluate(["float->int", 3.9])).toEqual(ok(int(3)));
+    expect(evaluate(["float->int", -3.9])).toEqual(ok(int(-3)));
+  });
+});
+
+describe("bitwise primitives", () => {
+  it("bit-and", () => {
+    expect(evaluate(["bit-and", 12, 10])).toEqual(ok(int(8)));
+  });
+
+  it("bit-or", () => {
+    expect(evaluate(["bit-or", 5, 3])).toEqual(ok(int(7)));
+  });
+
+  it("bit-xor", () => {
+    expect(evaluate(["bit-xor", 5, 3])).toEqual(ok(int(6)));
+  });
+
+  it("bit-not", () => {
+    const result = evalOk(["bit-not", 0]);
+    expect(result.kind).toBe("int");
+    expect((result as { kind: "int"; value: bigint }).value).toBe(~0n);
+  });
+
+  it("bit-shl shifts left", () => {
+    expect(evaluate(["bit-shl", 1, 4])).toEqual(ok(int(16)));
+  });
+
+  it("bit-shr shifts right", () => {
+    expect(evaluate(["bit-shr", 16, 2])).toEqual(ok(int(4)));
+  });
+
+  it("bit-and type error: non-int", () => {
+    const env = EMPTY_ENV.extend({ f: float(3.5) });
+    expect(evaluate(["bit-and", 5, "f"], env)).toEqual(err("TYPE_ERROR"));
+  });
+});

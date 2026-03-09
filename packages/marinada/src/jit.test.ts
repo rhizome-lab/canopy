@@ -736,3 +736,213 @@ describe("is and as", () => {
     expect(() => run(["as", "int", 3.14])).toThrow();
   });
 });
+
+// --- Array primitives ---
+
+describe("array primitives (JIT)", () => {
+  it("array builds empty array", () => {
+    expect(run(["array"])).toEqual([]);
+  });
+
+  it("array builds array from args", () => {
+    expect(run(["array", 1, 2, 3])).toEqual([1n, 2n, 3n]);
+  });
+
+  it("array-get returns element", () => {
+    expect(run(["array-get", "a", 1], { a: [10n, 20n, 30n] })).toBe(20n);
+  });
+
+  it("array-get out of bounds returns null", () => {
+    expect(run(["array-get", "a", 5], { a: [1n] })).toBe(null);
+  });
+
+  it("array-push appends element", () => {
+    expect(run(["array-push", "a", 3], { a: [1n, 2n] })).toEqual([1n, 2n, 3n]);
+  });
+
+  it("array-slice with start and end", () => {
+    expect(run(["array-slice", "a", 1, 3], { a: [0n, 1n, 2n, 3n, 4n] })).toEqual([1n, 2n]);
+  });
+
+  it("array-slice with start only", () => {
+    expect(run(["array-slice", "a", 2], { a: [0n, 1n, 2n, 3n] })).toEqual([2n, 3n]);
+  });
+});
+
+// --- Record aliases (JIT) ---
+
+describe("record primitives (JIT)", () => {
+  it("record-get returns value", () => {
+    expect(run(["record-get", "r", "k"], { r: { x: 42n }, k: "x" })).toBe(42n);
+  });
+
+  it("record-get missing key returns null", () => {
+    expect(run(["record-get", "r", "k"], { r: { x: 1n }, k: "z" })).toBe(null);
+  });
+
+  it("record-set adds field", () => {
+    expect(run(["record-set", "r", "k", 99], { r: { x: 1n }, k: "y" })).toEqual({
+      x: 1n,
+      y: 99n,
+    });
+  });
+
+  it("record-del removes key", () => {
+    const result = run(["record-del", "r", "k"], { r: { a: 1n, b: 2n }, k: "a" }) as Record<
+      string,
+      unknown
+    >;
+    expect("a" in result).toBe(false);
+    expect(result["b"]).toBe(2n);
+  });
+
+  it("record-keys returns keys", () => {
+    const result = run(["record-keys", "r"], { r: { x: 1n, y: 2n } }) as string[];
+    expect(result.sort()).toEqual(["x", "y"]);
+  });
+
+  it("record-vals returns values", () => {
+    const result = run(["record-vals", "r"], { r: { x: 7n } }) as unknown[];
+    expect(result).toEqual([7n]);
+  });
+
+  it("record-merge combines records", () => {
+    expect(run(["record-merge", "r1", "r2"], { r1: { a: 1n }, r2: { b: 2n } })).toEqual({
+      a: 1n,
+      b: 2n,
+    });
+  });
+});
+
+// --- String primitives (JIT) ---
+
+describe("string primitives (JIT)", () => {
+  it("str-len returns BigInt length", () => {
+    expect(run(["str-len", "s"], { s: "hello" })).toBe(5n);
+  });
+
+  it("str-get returns codepoint as BigInt", () => {
+    expect(run(["str-get", "s", 0], { s: "ABC" })).toBe(65n);
+  });
+
+  it("str-get out of bounds returns null", () => {
+    expect(run(["str-get", "s", 10], { s: "hi" })).toBe(null);
+  });
+
+  it("str-concat concatenates two strings", () => {
+    expect(run(["str-concat", "a", "b"], { a: "foo", b: "bar" })).toBe("foobar");
+  });
+
+  it("str-slice returns substring", () => {
+    expect(run(["str-slice", "s", 0, 5], { s: "hello world" })).toBe("hello");
+  });
+
+  it("str-cmp less than returns -1n", () => {
+    expect(run(["str-cmp", "a", "b"], { a: "apple", b: "banana" })).toBe(-1n);
+  });
+
+  it("str-cmp equal returns 0n", () => {
+    expect(run(["str-cmp", "a", "b"], { a: "same", b: "same" })).toBe(0n);
+  });
+
+  it("str-cmp greater than returns 1n", () => {
+    expect(run(["str-cmp", "a", "b"], { a: "z", b: "a" })).toBe(1n);
+  });
+
+  it("parse-int valid integer string", () => {
+    expect(run(["parse-int", "s"], { s: "42" })).toBe(42n);
+  });
+
+  it("parse-int invalid string returns null", () => {
+    expect(run(["parse-int", "s"], { s: "abc" })).toBe(null);
+  });
+
+  it("parse-float valid float string", () => {
+    expect(run(["parse-float", "s"], { s: "3.14" })).toBeCloseTo(3.14);
+  });
+
+  it("parse-float invalid string returns null", () => {
+    expect(run(["parse-float", "s"], { s: "nope" })).toBe(null);
+  });
+});
+
+// --- Math primitives (JIT) ---
+
+describe("math primitives (JIT)", () => {
+  it("floor of float", () => {
+    expect(run(["floor", 3.7])).toBe(3);
+  });
+
+  it("floor of int is identity (bigint)", () => {
+    expect(run(["floor", 5])).toBe(5n);
+  });
+
+  it("ceil of float", () => {
+    expect(run(["ceil", 3.2])).toBe(4);
+  });
+
+  it("round of float", () => {
+    expect(run(["round", 3.5])).toBe(4);
+  });
+
+  it("abs of negative int (bigint)", () => {
+    expect(run(["abs", -7])).toBe(7n);
+  });
+
+  it("abs of negative float", () => {
+    expect(run(["abs", -2.5])).toBe(2.5);
+  });
+
+  it("min of two ints (bigint)", () => {
+    expect(run(["min", 3, 5])).toBe(3n);
+  });
+
+  it("max of two ints (bigint)", () => {
+    expect(run(["max", 3, 5])).toBe(5n);
+  });
+
+  it("pow returns float", () => {
+    expect(run(["pow", 2, 10])).toBeCloseTo(1024);
+  });
+
+  it("sqrt returns float", () => {
+    expect(run(["sqrt", 4])).toBeCloseTo(2.0);
+  });
+
+  it("int->float converts to number", () => {
+    expect(run(["int->float", 5])).toBe(5);
+  });
+
+  it("float->int truncates toward zero", () => {
+    expect(run(["float->int", 3.9])).toBe(3n);
+    expect(run(["float->int", -3.9])).toBe(-3n);
+  });
+});
+
+// --- Bitwise primitives (JIT) ---
+
+describe("bitwise primitives (JIT)", () => {
+  it("bit-and", () => {
+    expect(run(["bit-and", 12, 10])).toBe(8n);
+  });
+
+  it("bit-or", () => {
+    expect(run(["bit-or", 5, 3])).toBe(7n);
+  });
+
+  it("bit-xor", () => {
+    expect(run(["bit-xor", 5, 3])).toBe(6n);
+  });
+
+  it("bit-not", () => {
+    expect(run(["bit-not", 0])).toBe(~0n);
+  });
+
+  it("bit-shl shifts left", () => {
+    expect(run(["bit-shl", 1, 4])).toBe(16n);
+  });
+
+  it("bit-shr shifts right", () => {
+    expect(run(["bit-shr", 16, 2])).toBe(4n);
+  });
+});

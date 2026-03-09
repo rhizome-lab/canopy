@@ -23,6 +23,9 @@ docs/.vitepress/dist/
 # Logs
 *.log
 
+# Rust
+agent/target/
+
 # Bun
 bun.lock
 

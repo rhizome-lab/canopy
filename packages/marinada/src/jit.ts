@@ -173,6 +173,47 @@ const RUNTIME = {
     const en = typeof end === "bigint" ? Number(end) : (end as number);
     return str.slice(st, en);
   },
+  _arrayGet(arr: unknown, idx: unknown): unknown {
+    if (!Array.isArray(arr)) return null;
+    const i = typeof idx === "bigint" ? Number(idx) : (idx as number);
+    if (i < 0 || i >= arr.length) return null;
+    return (arr[i] as unknown) ?? null;
+  },
+  _strGet(s: unknown, idx: unknown): bigint | null {
+    const str = s as string;
+    const i = typeof idx === "bigint" ? Number(idx) : (idx as number);
+    const cp = str.codePointAt(i);
+    if (cp === undefined) return null;
+    return BigInt(cp);
+  },
+  _strCmp(a: unknown, b: unknown): bigint {
+    const sa = a as string;
+    const sb = b as string;
+    if (sa < sb) return -1n;
+    if (sa > sb) return 1n;
+    return 0n;
+  },
+  _parseInt(s: unknown): bigint | null {
+    if (typeof s !== "string") return null;
+    const n = parseInt(s, 10);
+    if (isNaN(n)) return null;
+    return BigInt(Math.trunc(n));
+  },
+  _parseFloat(s: unknown): number | null {
+    if (typeof s !== "string") return null;
+    const n = parseFloat(s);
+    if (isNaN(n)) return null;
+    return n;
+  },
+  _intToFloat(x: unknown): number {
+    return Number(x as bigint);
+  },
+  _floatToInt(x: unknown): bigint {
+    return BigInt(Math.trunc(x as number));
+  },
+  _bitNot(a: unknown): bigint {
+    return ~(a as bigint);
+  },
 };
 
 // --- Compiler ---
@@ -449,6 +490,119 @@ function compileExpr(expr: Expr, ctx: CompileCtx): string {
 
     case "vals":
       return `_rt._vals(${arg(1)})`;
+
+    // --- Array primitives ---
+    case "array": {
+      const elems = arr.slice(1).map((e, i) => compileExpr(e, childCtx(ctx, i + 1)));
+      return `[${elems.join(", ")}]`;
+    }
+
+    case "array-get":
+      return `_rt._arrayGet(${arg(1)}, ${arg(2)})`;
+
+    case "array-push":
+      return `[...${arg(1)}, ${arg(2)}]`;
+
+    case "array-slice": {
+      if (arr.length === 3) {
+        return `(${arg(1)}).slice(Number(${arg(2)}))`;
+      }
+      return `(${arg(1)}).slice(Number(${arg(2)}), Number(${arg(3)}))`;
+    }
+
+    // --- Record aliases ---
+    case "record-get":
+      return `_rt._get(${arg(1)}, ${arg(2)})`;
+
+    case "record-set":
+      return `_rt._set(${arg(1)}, ${arg(2)}, ${arg(3)})`;
+
+    case "record-del": {
+      const rCode = arg(1);
+      const kCode = arg(2);
+      return `((_$r, _$k) => { const _$o = {..._$r}; delete _$o[_$k]; return _$o; })(${rCode}, ${kCode})`;
+    }
+
+    case "record-keys":
+      return `_rt._keys(${arg(1)})`;
+
+    case "record-vals":
+      return `_rt._vals(${arg(1)})`;
+
+    case "record-merge":
+      return `_rt._merge(${arg(1)}, ${arg(2)})`;
+
+    // --- String primitives ---
+    case "str-len":
+      return `BigInt(${arg(1)}.length)`;
+
+    case "str-get":
+      return `_rt._strGet(${arg(1)}, ${arg(2)})`;
+
+    case "str-concat":
+      return `(${arg(1)} + ${arg(2)})`;
+
+    case "str-slice":
+      return `(${arg(1)}).slice(Number(${arg(2)}), Number(${arg(3)}))`;
+
+    case "str-cmp":
+      return `_rt._strCmp(${arg(1)}, ${arg(2)})`;
+
+    case "parse-int":
+      return `_rt._parseInt(${arg(1)})`;
+
+    case "parse-float":
+      return `_rt._parseFloat(${arg(1)})`;
+
+    // --- Math primitives ---
+    case "floor":
+      return `(typeof (${arg(1)}) === "bigint" ? ${arg(1)} : Math.floor(${arg(1)}))`;
+
+    case "ceil":
+      return `(typeof (${arg(1)}) === "bigint" ? ${arg(1)} : Math.ceil(${arg(1)}))`;
+
+    case "round":
+      return `(typeof (${arg(1)}) === "bigint" ? ${arg(1)} : Math.round(${arg(1)}))`;
+
+    case "abs":
+      return `(typeof (${arg(1)}) === "bigint" ? (${arg(1)} < 0n ? -(${arg(1)}) : ${arg(1)}) : Math.abs(${arg(1)}))`;
+
+    case "min":
+      return `(typeof (${arg(1)}) === "bigint" && typeof (${arg(2)}) === "bigint" ? ((${arg(1)}) < (${arg(2)}) ? ${arg(1)} : ${arg(2)}) : Math.min(Number(${arg(1)}), Number(${arg(2)})))`;
+
+    case "max":
+      return `(typeof (${arg(1)}) === "bigint" && typeof (${arg(2)}) === "bigint" ? ((${arg(1)}) > (${arg(2)}) ? ${arg(1)} : ${arg(2)}) : Math.max(Number(${arg(1)}), Number(${arg(2)})))`;
+
+    case "pow":
+      return `Math.pow(Number(${arg(1)}), Number(${arg(2)}))`;
+
+    case "sqrt":
+      return `Math.sqrt(Number(${arg(1)}))`;
+
+    case "int->float":
+      return `_rt._intToFloat(${arg(1)})`;
+
+    case "float->int":
+      return `_rt._floatToInt(${arg(1)})`;
+
+    // --- Bitwise primitives ---
+    case "bit-and":
+      return `((${arg(1)}) & (${arg(2)}))`;
+
+    case "bit-or":
+      return `((${arg(1)}) | (${arg(2)}))`;
+
+    case "bit-xor":
+      return `((${arg(1)}) ^ (${arg(2)}))`;
+
+    case "bit-not":
+      return `_rt._bitNot(${arg(1)})`;
+
+    case "bit-shl":
+      return `((${arg(1)}) << (${arg(2)}))`;
+
+    case "bit-shr":
+      return `((${arg(1)}) >> (${arg(2)}))`;
 
     case "concat": {
       if (arr.length < 2) throw new CompileError("concat requires at least 1 arg", ctx.path);
