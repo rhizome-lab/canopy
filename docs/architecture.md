@@ -123,6 +123,22 @@ The layout system is how complex UIs are built from generic primitives. Layout i
 
 This is first-class, not an afterthought. A "chat UI" is a layout: message list renderer + input renderer + action trigger. No bespoke plugin required.
 
+### Primitives
+
+Inspired by SwiftUI/QML — minimal, complete, no jank. Layout is negotiated: parent offers space, child reports size, parent places.
+
+| Primitive   | Description                              |
+|-------------|------------------------------------------|
+| `HStack`    | Horizontal stack. Alignment + spacing.   |
+| `VStack`    | Vertical stack. Alignment + spacing.     |
+| `ZStack`    | Layered/overlay. For modals, tooltips.   |
+| `Grid`      | 2D grid. Explicit rows/columns.          |
+| `Spacer`    | Fills available space.                   |
+| `HMasonry`  | Horizontal masonry. Maybe.               |
+| `VMasonry`  | Vertical masonry. Maybe.                 |
+
+Layout nodes are JSON. CSS is an implementation detail — the layout model does not expose it.
+
 ---
 
 ## Capability-Based Security
