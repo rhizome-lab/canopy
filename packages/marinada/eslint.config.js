@@ -15,4 +15,8 @@ export default ts.config(
       "@typescript-eslint/no-unused-vars": ["error", { argsIgnorePattern: "^_" }],
     },
   },
+  {
+    // Test files are checked by bun at runtime; exclude from tsc-aware lint
+    ignores: ["src/**/*.test.ts"],
+  },
 )
