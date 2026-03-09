@@ -106,13 +106,16 @@ Actions are suggested by patterns (which recognize what operations make sense fo
 
 Projects data to UI. A renderer is a projection — it receives a `ReactiveLens<S, A>` and produces UI.
 
-A `ReactiveLens<S, A>` is a lens where `get` returns a `Signal<A>` and `set` propagates reactively. A read-only source produces a lens where the write side is a no-op. An input/form produces a lens where writes propagate. Same API in all cases — the renderer doesn't need to know which.
+All data is local state. Source data arrives and becomes local state — the source keeps it synchronized with the external world, but in memory it is always locally owned and always writable. A `ReactiveLens<S, A>` therefore always has a valid write side: `get` returns a `Signal<A>`, `set` updates local state reactively.
+
+- **Lens write** → updates local state
+- **Action via capability** → propagates local state changes to the external world
+
+These are distinct. A form input writes through a lens. A POST button invokes a Marinada action via capability.
 
 The reactive lens a renderer receives is the result of composing all optics from the layout tree root down to that leaf.
 
-Renderers receive scoped capabilities for action invocation. Actions (e.g. a POST request) are separate from the lens write surface — they are Marinada expressions invoked via capability.
-
-Renderer-local state is up to the renderer. It may expose state into the reactive graph (scroll position, selection — observable, persistable, debuggable) or keep it opaque. Either way it's just data.
+Renderer-local state is up to the renderer — it may expose state into the reactive graph (scroll position, selection — observable, persistable, debuggable) or keep it opaque. Either way it's just data.
 
 Complex UIs are **composed from layout primitives**, not implemented as monolithic renderer plugins. Philosophy: define only primitives, compose everything else.
 
