@@ -157,6 +157,15 @@ Capability types: `Network`, `Storage`, `LocalAgent`, `PluginBridge`, and plugin
 
 Capabilities can be attenuated — a plugin can hand a subset of its capabilities to a sub-expression or child plugin.
 
+### Grant Flow
+
+Two levels:
+
+1. **Max set** — defined in config, established via setup wizard. The ceiling of what Dusklight itself may do (which networks, which storage, which local agents). Never exceeded.
+2. **Attenuation** — UI at runtime. The user decides what each app, view, or plugin actually receives. Always a subset of the max set.
+
+Root capabilities flow down and only ever narrow. A plugin cannot have more than what the user handed it; the user cannot grant more than the configured max.
+
 ---
 
 ## Local Agent
@@ -164,6 +173,12 @@ Capabilities can be attenuated — a plugin can hand a subset of its capabilitie
 Some sources cannot run in-browser (SQLite, filesystem, system processes). These communicate via a **local agent** — a small process running on the user's machine that exposes a standard protocol. Source plugins talk to the agent via a `LocalAgent` capability.
 
 `dusklight-agent` is the reference implementation. The protocol is open — any conforming agent works.
+
+### Wire Format
+
+**Cap'n Proto** over a Unix socket. Zero-copy, high performance, and — critically — Cap'n Proto has first-class capability support built into the protocol. Our ocap model maps directly onto the wire format; capabilities are not bolted on top.
+
+TS clients won't get zero-copy but benefit from the schema and capability semantics. Rust (agent, native clients) gets full zero-copy.
 
 ---
 
@@ -211,6 +226,6 @@ Config files are JSONC. Stored at:
 - [x] ~~Control plane~~ Actions are Marinada expressions. No read/write asymmetry.
 - [x] ~~Serializers~~ Not a special category — just Marinada ops that produce strings/bytes.
 - [ ] Layout system — data model for layout trees, how Marinada wires to layout nodes.
-- [ ] Capability grant flow — who grants what to whom, at what point (install time? runtime?).
-- [ ] Local agent protocol — what does the wire format look like?
+- [x] ~~Capability grant flow~~ Two levels: (1) **max set** defined in config file via setup wizard — the ceiling of what Dusklight itself may do; (2) **attenuation** via UI at runtime — user decides what each app/view/plugin actually receives, always a subset of the max. Root capabilities only ever narrow as they flow down.
+- [x] ~~Local agent protocol~~ Cap'n Proto over Unix socket. Zero-copy; capability model maps directly onto the wire format.
 - [ ] Renderer mount API — needs more thought; current signature is placeholder.
