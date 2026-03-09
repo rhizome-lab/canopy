@@ -2,40 +2,58 @@
 
 High-level technical design for Dusklight.
 
+> **Status: design in progress.** This document reflects decisions made so far. Many details remain open.
+
+---
+
+## Core Model
+
+Dusklight is a **projectional viewer**. Everything is data and functions over data. There is no fundamental read/write asymmetry.
+
+World boundaries:
+- **Source** (world → data): bytes arrive from somewhere
+- **Renderer** (data → screen): data is projected to UI
+- **Action** (data → world): data is sent somewhere
+
+Everything in between is pure data manipulation, expressed in [Marinada](./marinada.md).
+
+---
+
 ## Data Flow
 
 ```
-┌─────────────┐     ┌─────────────┐     ┌─────────────┐     ┌─────────────┐
-│   Source    │────▶│   Parser    │────▶│  Patterns   │────▶│  Renderer   │
-│             │     │             │     │             │     │             │
-│ fetch/ws/   │     │ json/proto/ │     │ match shape │     │ tree/table/ │
-│ sse/file    │     │ msgpack/bin │     │ select view │     │ chart/hex   │
-└─────────────┘     └─────────────┘     └─────────────┘     └─────────────┘
+Source → Parser → Pattern → Renderer
+                     ↓
+                  Actions
 ```
 
-Each stage is pluggable.
+Each stage is pluggable. Core orchestrates, plugins implement every stage.
+
+Schemas (OpenAPI, JTD, JSON Schema) are themselves data — they flow through the same pipeline and into `MatchContext` to inform pattern matching and rendering.
+
+---
 
 ## Core Abstractions
 
 ### Source
 
-Produces raw bytes + metadata.
+Produces raw bytes + metadata. Transport is owned entirely by the source plugin — core does not know what HTTP, WebSocket, or SQLite is.
 
 ```typescript
 type Source = {
-  kind: 'fetch' | 'websocket' | 'sse' | 'file' | 'static'
-  url?: string
-  contentType?: string
-  // ...
+  id: string
+  // everything else is plugin-defined
 }
 
 type SourceResult = {
-  data: ArrayBuffer | ReadableStream<Uint8Array>
-  contentType: string
-  headers?: Headers
-  metadata?: Record<string, unknown>
+  data: AsyncIterable<Uint8Array>
+  contentType?: string
+  metadata?: unknown
 }
 ```
+
+Built-in sources: static, file.
+Plugin sources: HTTP, WebSocket, SSE, SQLite (via local agent), gRPC, Matrix, IRC, etc.
 
 ### Parser
 
@@ -44,11 +62,8 @@ Transforms bytes into structured data.
 ```typescript
 type Parser = {
   id: string
-  name: string
-  // Which content types this parser handles
   contentTypes: string[]
-  // Parse raw bytes into structured form
-  parse(input: ArrayBuffer, ctx: ParseContext): ParseResult
+  parse(input: AsyncIterable<Uint8Array>, ctx: ParseContext): AsyncIterable<ParseResult>
 }
 
 type ParseResult =
@@ -57,100 +72,129 @@ type ParseResult =
 ```
 
 Built-in parsers: JSON, text, binary (passthrough).
-Plugin parsers: protobuf, msgpack, CBOR, custom binary formats.
+Plugin parsers: protobuf, msgpack, CBOR, JSONL, custom binary formats.
 
 ### Pattern
 
-Recognizes structure in parsed data, suggests renderers.
+Recognizes structure in parsed data. Suggests renderers and actions.
 
 ```typescript
 type Pattern = {
   id: string
-  name: string
-  // Higher priority = matched first
   priority: number
-  // Does this pattern match the data?
   match(data: unknown, ctx: MatchContext): MatchResult
 }
 
 type MatchResult =
   | { matched: false }
-  | { matched: true; renderer: string; confidence: number; children?: ChildMatch[] }
+  | { matched: true; renderer: string; confidence: number; actions?: Action[]; children?: ChildMatch[] }
 ```
 
-Patterns can be:
-- **Structural**: "array of objects with numeric x/y fields"
-- **Heuristic**: "number that looks like a Unix timestamp"
-- **Semantic**: "field named `*_color` containing hex string"
-- **Schema-derived**: "OpenAPI says this is a DateTime"
+Patterns can be structural, heuristic, semantic, or schema-derived.
+
+### Action
+
+An action is a Marinada expression — pure data, fully serializable, inspectable, replayable.
+
+```json
+["call.method", cap, "post", ["get", "data", "payload"]]
+```
+
+Actions are suggested by patterns (which recognize what operations make sense for this data shape) and executed by the Marinada evaluator. Side effects only occur at world boundaries via capability objects.
 
 ### Renderer
 
-Displays data.
+Projects data to UI. A renderer is a projection — it receives data and produces UI. State management is the renderer's own concern; core does not classify renderers as stateful or stateless.
+
+Complex UIs (e.g. a chat interface) are **composed from layout primitives**, not implemented as monolithic renderer plugins. The layout system arranges primitive renderers (message list, input box, send button) into complex UIs. No special-case renderers for known UI patterns.
 
 ```typescript
 type Renderer = {
   id: string
-  name: string
-  // Render data to DOM/component
-  render(data: unknown, ctx: RenderContext): RenderResult
+  mount(target: Element, data: unknown): () => void  // returns unmount
 }
 ```
 
-Renderers receive matched data + any child pattern matches, produce UI.
+---
+
+## Layout & Composition
+
+The layout system is how complex UIs are built from generic primitives. Layout is data — a tree of layout nodes referencing renderers and data sources. Marinada expressions wire data to layout nodes.
+
+This is first-class, not an afterthought. A "chat UI" is a layout: message list renderer + input renderer + action trigger. No bespoke plugin required.
+
+---
+
+## Capability-Based Security
+
+Plugins operate under the object-capability model. There is no ambient authority — a plugin can only exercise capabilities it has been explicitly handed.
+
+Capabilities are typed opaque objects with methods, called via the `call.method` Marinada op:
+
+```json
+["call.method", networkCap, "get", "https://api.openai.com/..."]
+```
+
+A plugin that hasn't been granted `networkCap` cannot make network calls. Capabilities are values in the Marinada expression tree — authority is visible and auditable by inspecting the program.
+
+Capability types: `Network`, `Storage`, `LocalAgent`, `PluginBridge`, and plugin-defined caps.
+
+Capabilities can be attenuated — a plugin can hand a subset of its capabilities to a sub-expression or child plugin.
+
+---
+
+## Local Agent
+
+Some sources cannot run in-browser (SQLite, filesystem, system processes). These communicate via a **local agent** — a small process running on the user's machine that exposes a standard protocol. Source plugins talk to the agent via a `LocalAgent` capability.
+
+`dusklight-agent` is the reference implementation. The protocol is open — any conforming agent works.
+
+---
 
 ## Plugin System
 
 Plugins are ES modules exporting a manifest:
 
 ```typescript
-// my-plugin.ts
 export const manifest: PluginManifest = {
   id: 'my-plugin',
-  name: 'My Plugin',
   version: '1.0.0',
-  parsers: [myParser],
-  patterns: [myPattern],
-  renderers: [myRenderer],
+  capabilities: ['network:api.example.com'],  // declared, not ambient
+  parsers: [...],
+  patterns: [...],
+  renderers: [...],
+  ops: [...],  // Marinada ops this plugin registers
 }
 ```
 
-Loaded dynamically. Core provides:
-- Plugin discovery/loading
-- Dependency resolution
-- Sandboxing (future)
+Distribution: npm/jsr for published plugins, URLs for direct install, local paths for personal plugins. No custom registry.
+
+---
 
 ## Configuration
 
 Layered, VSCode-style:
 
 ```
-defaults < user settings < workspace settings < source overrides
+defaults < user < workspace < source overrides
 ```
 
-Example user settings:
+Config files are JSONC. Stored at:
+- User: `~/.config/dusklight/`
+- Workspace: `.dusklight/`
 
-```jsonc
-{
-  // Default renderer for arrays
-  "renderers.array.default": "table",
-
-  // Pattern overrides
-  "patterns.timestamp.range": [0, 2000000000000],
-
-  // Per-source config
-  "sources": {
-    "https://api.example.com/*": {
-      "auth": { "type": "bearer", "token": "${env:EXAMPLE_TOKEN}" }
-    }
-  }
-}
-```
+---
 
 ## Open Questions
 
-- [x] ~~How do user scripts integrate?~~ No distinction - everything is a plugin. Local plugins live in `~/.config/dusklight/plugins/local/`, installed ones in `plugins/installed/`. Same API, same power.
-- [x] ~~Streaming data - how do patterns work on partial data?~~ Patterns match individual items. Renderers control collection behavior (append/window/replace). Same pattern can render as "table, append last 1000" or "chart, window last 5 minutes". Multiple views on same source can have different collection modes.
-- [x] ~~Binary annotation UI - how to persist user structure annotations?~~ Layered like VSCode settings: user (`~/.config/dusklight/`), workspace (`.dusklight/`), folder, file. User can "promote to plugin" when they've identified a general format.
-- [x] ~~Schema discovery - auto-fetch OpenAPI, or explicit config?~~ Both: auto-discover well-known paths, allow explicit override/disable. Schema flows into `MatchContext` so patterns can use it (authoritative) or fall back to data heuristics. Also used for: validation indicators, documentation tooltips (like VSCode JSON language server).
-- [x] ~~Plugin distribution - registry, or just URLs?~~ No custom registry. Use npm/jsr for published plugins, URLs for direct install, local paths for personal plugins. All resolve to ES modules. `dusklight install npm:@dusklight/foo`, `dusklight install https://...`, `dusklight install ./local/bar.ts`.
+- [x] ~~How do user scripts integrate?~~ No distinction — everything is a plugin.
+- [x] ~~Streaming data — how do patterns work on partial data?~~ Patterns match individual items. Renderers control collection behavior (append/window/replace).
+- [x] ~~Binary annotation UI~~ Layered settings. User can "promote to plugin".
+- [x] ~~Schema discovery~~ Both auto-discover and explicit override. Schema flows into `MatchContext`.
+- [x] ~~Plugin distribution~~ npm/jsr/URL/local. All resolve to ES modules.
+- [x] ~~Control plane~~ Actions are Marinada expressions. No read/write asymmetry.
+- [x] ~~Serializers~~ Not a special category — just Marinada ops that produce strings/bytes.
+- [ ] Layout system — data model for layout trees, how Marinada wires to layout nodes.
+- [ ] Capability grant flow — who grants what to whom, at what point (install time? runtime?).
+- [ ] Local agent protocol — what does the wire format look like?
+- [ ] Renderer mount API — needs more thought; current signature is placeholder.

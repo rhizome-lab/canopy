@@ -1,5 +1,7 @@
 # Marinada
 
+> **Status: design in progress.** Core model is settled; some details remain open (see Open Questions).
+
 Marinada is the expression language at the core of Dusklight. It is a small, gradually-typed language designed for data manipulation and world-boundary actions.
 
 Expressions are **JSON arrays** — s-expressions as a data structure, not a custom syntax. No custom parser required; implementations evaluate JSON directly.
@@ -149,6 +151,48 @@ Require `boolean`. Return `boolean`.
 ["to-string", val]          // convert any primitive to string.
 ["parse-number", s]         // string → number | null.
 ```
+
+### Function & Method Calls
+
+```json
+["call", f, arg1, arg2]           // call a function or lambda.
+["call.method", cap, method, ...] // call a named method on a capability object.
+```
+
+`call.method` is a family of ops where the method name is a string argument. The type checker resolves the method signature from the capability's type.
+
+```json
+["call.method", networkCap, "get", "https://api.example.com/data"]
+["call.method", storageCap, "set", "key", value]
+```
+
+---
+
+## Capabilities
+
+Capabilities are typed opaque objects — unforgeable values that grant authority. They are received as arguments (never constructed from within a program) and exercised via `call.method`.
+
+### Capability Type
+
+```
+Cap<T>
+```
+
+Where `T` describes the capability's interface. A `Cap<Network>` grants network access; a `Cap<Storage>` grants storage access. The type checker knows which methods are available on each capability type.
+
+Capabilities can be **attenuated** — a sub-expression can be handed a narrower capability (e.g. a `Cap<Network>` restricted to one host).
+
+There is no ambient authority. A program that hasn't been handed a capability cannot exercise it.
+
+### Built-in Capability Types
+
+| Type              | Methods                                 |
+|-------------------|-----------------------------------------|
+| `Cap<Network>`    | `get`, `post`, `put`, `delete`, `ws`   |
+| `Cap<Storage>`    | `get`, `set`, `delete`, `list`          |
+| `Cap<LocalAgent>` | plugin-defined                          |
+
+Plugin-defined capability types are declared in the plugin manifest alongside their method signatures, so the type checker can validate their use.
 
 ---
 
