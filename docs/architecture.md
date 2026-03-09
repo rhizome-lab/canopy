@@ -78,17 +78,9 @@ Plugin parsers: protobuf, msgpack, CBOR, JSONL, custom binary formats.
 
 Recognizes structure in parsed data. Suggests renderers and actions.
 
-```typescript
-type Pattern = {
-  id: string
-  priority: number
-  match(data: unknown, ctx: MatchContext): MatchResult
-}
+A pattern is a Marinada predicate — a function `data -> float | null` where the float is a confidence score (0–1) and null means no match. The dispatch layer collects all pattern results, ranks them, and presents the ranked list to the user.
 
-type MatchResult =
-  | { matched: false }
-  | { matched: true; renderer: string; confidence: number; actions?: Action[]; children?: ChildMatch[] }
-```
+This is **distinct from Marinada's `match`**, which is exact, exhaustive, and deterministic. UI renderer selection is heuristic and multi-valued — multiple renderers may be valid for the same data (e.g. Milkdown, Prosemirror, and raw JSON for markdown). The user can switch between candidates; preferences persist.
 
 Patterns can be structural, heuristic, semantic, or schema-derived.
 

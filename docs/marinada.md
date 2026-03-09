@@ -47,13 +47,14 @@ Marinada is gradually typed. Every expression has a type. Types are checked befo
 
 ### Primitive Types
 
-| Type      | Description               |
-|-----------|---------------------------|
-| `number`  | 64-bit float              |
-| `string`  | UTF-8 string              |
-| `boolean` | `true` or `false`         |
-| `null`    | `null`                    |
-| `unknown` | type not yet known        |
+| Type      | Description                                      |
+|-----------|--------------------------------------------------|
+| `int`     | 64-bit signed integer. JS impl uses `BigInt`.    |
+| `float`   | 64-bit IEEE 754 float.                           |
+| `string`  | UTF-8 string                                     |
+| `boolean` | `true` or `false`                                |
+| `null`    | `null` — JSON-compatible nil value               |
+| `unknown` | type not yet known                               |
 
 ### Compound Types
 
@@ -63,6 +64,61 @@ Marinada is gradually typed. Every expression has a type. Types are checked befo
 | `record<K, V>` | map from K to V                    |
 | `T \| U`       | union                              |
 | `bytes`        | raw byte sequence                  |
+
+### Discriminated Unions
+
+Marinada has native DU support. DUs are required for renderer dispatch and for modeling protocol message types, state machines, and domain variants.
+
+```json
+["type", "Color", ["Red"], ["Green"], ["Blue"]]
+["type", "Shape",
+  ["Circle", ["radius", "float"]],
+  ["Rect",   ["width", "float"], ["height", "float"]]]
+```
+
+Constructors:
+```json
+["Red"]
+["Circle", 1.5]
+```
+
+Pattern matching via `match` — exact, exhaustive, deterministic:
+```json
+["match", expr,
+  [["Circle", "r"], ["*", 3.14159, ["*", "r", "r"]]],
+  [["Rect", "w", "h"], ["*", "w", "h"]]]
+```
+
+The type checker enforces exhaustiveness. Non-exhaustive `match` is a compile error.
+
+### Standard Library DUs
+
+`option<T>` and `result<T, E>` are library DUs, not special cases:
+
+```
+option<T> = None | Some(T)
+result<T, E> = Ok(T) | Err(E)
+```
+
+`null` is a JSON-compatible nil, distinct from `None`. Use `option<T>` for typed optionality, `null` when interfacing with JSON data that uses it.
+
+### Error Handling
+
+Errors are data. `result<T, E>` is the propagation mechanism — no exceptions.
+
+The `?` op propagates errors up: if the inner expression is `Err`, return it immediately; if `Ok`, unwrap:
+
+```json
+["?", ["some-op-returning-result", ...]]
+```
+
+`letrec` for mutually recursive definitions (required for tree traversal):
+
+```json
+["letrec", [["f", ["fn", ["x"], ...body-using-f...]]], ["f", initial]]
+```
+
+TCO is guaranteed — implementations must not overflow the stack on tail-recursive calls.
 
 ### `unknown`
 
@@ -314,8 +370,6 @@ Plugin ops declare their input/output types as part of registration, so generate
 
 ## Open Questions
 
-- Integer vs float distinction? Currently everything is 64-bit float (like JS).
-- `null` vs `option<T>` — should we have a proper option type?
-- Error handling — how do errors propagate? Exceptions? Result type?
-- Tail call optimization — required for recursion to be useful.
-- Is recursion in scope? (`letrec`?)
+- DU type definition syntax — `["type", ...]` is a placeholder; exact form TBD.
+- `fn` / lambda syntax — referenced above but not yet specified.
+- `?` error propagation — exact semantics when used outside a `result` context.
